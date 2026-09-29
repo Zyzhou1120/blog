@@ -10,6 +10,9 @@ permissions:
   pages: write
   id-token: write
 
+env:
+  TZ: Asia/Shanghai
+
 concurrency:
   group: github-pages
   cancel-in-progress: true
