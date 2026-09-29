@@ -1,0 +1,29 @@
+nav:
+  display_title: true
+
+menu:
+  首页: / || fas fa-home
+  归档: /archives/ || fas fa-archive
+
+favicon: /img/favicon.ico
+
+disable_top_img: true
+background: '#f5f7f9'
+
+cover:
+  index_enable: false
+  aside_enable: false
+  archives_enable: false
+
+aside:
+  enable: true
+  card_author:
+    enable: false
+  card_announcement:
+    enable: false
+  card_webinfo:
+    enable: false
+
+footer:
+  owner:
+    enable: true
