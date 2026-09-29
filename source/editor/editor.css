@@ -369,6 +369,14 @@ svg {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.reload-post {
+  width: 28px;
+  height: 28px;
+}
+.reload-post:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
 .dirty-dot {
   width: 7px;
   height: 7px;
@@ -425,6 +433,10 @@ svg {
 .draft-notice svg {
   width: 15px;
   height: 15px;
+}
+.conflict-notice button:last-child {
+  color: #176d62;
+  white-space: nowrap;
 }
 .panes {
   display: grid;

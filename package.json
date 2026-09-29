@@ -7,7 +7,8 @@
     "build:editor": "node tools/build-editor.mjs",
     "clean": "hexo clean",
     "deploy": "hexo deploy",
-    "server": "pnpm build:editor && hexo server"
+    "server": "pnpm build:editor && hexo server",
+    "test:editor": "pnpm build:editor && node --test tests/editor.test.mjs"
   },
   "hexo": {
     "version": "8.1.2"
@@ -30,6 +31,7 @@
     "yaml": "^2.9.1"
   },
   "devDependencies": {
-    "esbuild": "^0.28.2"
+    "esbuild": "^0.28.2",
+    "jsdom": "^30.1.1"
   }
 }

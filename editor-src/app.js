@@ -11,6 +11,8 @@ const REPO = 'blog'
 const BRANCH = 'main'
 const POSTS_PATH = 'source/_posts'
 const API = `https://api.github.com/repos/${OWNER}/${REPO}`
+const SESSION_TOKEN_KEY = 'blog-editor:token'
+const LAST_DOCUMENT_KEY = 'blog-editor:last-document'
 const icons = { SquarePen, KeyRound, ArrowRight, Menu, FilePlus2, Upload, LogOut, RefreshCw, ExternalLink, FileText, X }
 const $ = (id) => document.getElementById(id)
 
@@ -30,6 +32,7 @@ function encodedPath(path) {
 
 async function request(path, options = {}) {
   const response = await fetch(path.startsWith('https://') ? path : `${API}${path}`, {
+    cache: 'no-store',
     ...options,
     headers: {
       Accept: 'application/vnd.github+json',
@@ -79,7 +82,12 @@ function showMessage(value, error = false) {
 function showError(error) {
   if (error.status === 401) return '令牌无效或已过期，请重新连接。'
   if (error.status === 403) return '没有足够的仓库权限，或 GitHub 暂时限制了请求。'
+  if (isConflict(error)) return '远程文章已有新修改。你的草稿已保存在本地，载入最新版本后再检查内容。'
   return error.message || '操作失败，请稍后重试。'
+}
+
+function isConflict(error) {
+  return error.status === 409 || (error.status === 422 && /does not match|sha/i.test(error.message))
 }
 
 function unsaved() {
@@ -158,24 +166,40 @@ function setDocument(name, text, currentSha) {
   filename = name
   sha = currentSha
   baseText = text
+  sessionStorage.setItem(LAST_DOCUMENT_KEY, name)
   $('filename').textContent = name
   $('markdown').value = text
   $('draft-notice').hidden = true
+  $('conflict-notice').hidden = true
+  $('reload-post').disabled = !currentSha
+  $('message').hidden = true
   renderPreview()
   renderPosts()
   setStatus('已同步')
   $('sidebar').classList.remove('open')
 }
 
-async function openPost(post) {
-  if (post.name === filename || !canLeave()) return
+async function openPost(post, force = false) {
+  if ((post.name === filename && !force) || !canLeave()) return
   storeDraft()
   setStatus('正在读取...')
   try {
     const result = await request(`/contents/${encodedPath(`${POSTS_PATH}/${post.name}`)}?ref=${BRANCH}`)
     setDocument(post.name, decodeBase64(result.content), result.sha)
     const saved = localStorage.getItem(draftKey(post.name))
-    if (saved && JSON.parse(saved).text !== baseText) $('draft-notice').hidden = false
+    if (saved) {
+      const draft = JSON.parse(saved)
+      if (draft.text !== baseText) {
+        if (draft.sha === sha) {
+          $('markdown').value = draft.text
+          renderPreview()
+          setStatus('本地草稿已恢复')
+        } else {
+          $('draft-copy').textContent = '远程文章已更新。恢复草稿后提交会覆盖远程内容。'
+          $('draft-notice').hidden = false
+        }
+      }
+    }
   } catch (error) {
     showMessage(showError(error), true)
     setStatus('读取失败')
@@ -220,7 +244,11 @@ async function publish() {
     const path = `/contents/${encodedPath(`${POSTS_PATH}/${filename}`)}`
     if (sha) {
       const latest = await request(`${path}?ref=${BRANCH}`)
-      if (latest.sha !== sha) throw new Error('远程文章已有新修改。请刷新文章，确认内容后再提交。')
+      if (latest.sha !== sha) {
+        const error = new Error('远程文章已有新修改')
+        error.status = 409
+        throw error
+      }
     }
     const text = $('markdown').value
     const result = await request(path, {
@@ -239,18 +267,22 @@ async function publish() {
     renderPreview()
     setStatus('已提交到 GitHub')
     showMessage('文章已提交到 GitHub。公开站点目前仍需手动部署。')
-    await loadPosts()
+    try {
+      await loadPosts()
+    } catch {
+      showMessage('文章已提交到 GitHub，但文章列表暂时无法刷新。')
+    }
   } catch (error) {
     setStatus('提交失败')
+    if (isConflict(error)) $('conflict-notice').hidden = false
     showMessage(showError(error), true)
   } finally {
     button.disabled = false
   }
 }
 
-$('auth-form').addEventListener('submit', async (event) => {
-  event.preventDefault()
-  token = $('token').value.trim()
+async function connect(nextToken) {
+  token = nextToken
   $('auth-button').disabled = true
   $('auth-error').hidden = true
   try {
@@ -259,18 +291,37 @@ $('auth-form').addEventListener('submit', async (event) => {
     const repository = await request('')
     if (repository.permissions?.push === false) throw new Error('此令牌没有仓库写入权限。请授予 Contents 读写权限。')
     await loadPosts()
+    sessionStorage.setItem(SESSION_TOKEN_KEY, token)
     $('account-name').textContent = `@${account.login}`
     $('token').value = ''
     $('auth-view').hidden = true
     $('editor-view').hidden = false
-    if (posts[0]) await openPost(posts[0])
+    const lastDocument = sessionStorage.getItem(LAST_DOCUMENT_KEY)
+    const lastPost = posts.find((post) => post.name === lastDocument)
+    if (lastPost) {
+      await openPost(lastPost)
+    } else if (lastDocument && localStorage.getItem(draftKey(lastDocument))) {
+      const draft = JSON.parse(localStorage.getItem(draftKey(lastDocument)))
+      setDocument(lastDocument, '', null)
+      $('markdown').value = draft.text
+      renderPreview()
+      setStatus('本地草稿已恢复')
+    } else if (posts[0]) {
+      await openPost(posts[0])
+    }
   } catch (error) {
     token = ''
+    sessionStorage.removeItem(SESSION_TOKEN_KEY)
     $('auth-error').textContent = showError(error)
     $('auth-error').hidden = false
   } finally {
     $('auth-button').disabled = false
   }
+}
+
+$('auth-form').addEventListener('submit', (event) => {
+  event.preventDefault()
+  connect($('token').value.trim())
 })
 
 $('markdown').addEventListener('input', () => {
@@ -292,6 +343,10 @@ $('new-form').addEventListener('submit', (event) => {
 $('close-dialog').addEventListener('click', () => $('new-dialog').close())
 $('cancel-new').addEventListener('click', () => $('new-dialog').close())
 $('publish').addEventListener('click', publish)
+$('reload-post').addEventListener('click', () => {
+  if (filename && sha) openPost({ name: filename }, true)
+})
+$('reload-conflict').addEventListener('click', () => openPost({ name: filename }, true))
 $('refresh-posts').addEventListener('click', async () => {
   try { await loadPosts() } catch (error) { showMessage(showError(error), true) }
 })
@@ -312,6 +367,7 @@ $('sidebar-toggle').addEventListener('click', () => $('sidebar').classList.toggl
 $('logout').addEventListener('click', () => {
   storeDraft()
   token = ''
+  sessionStorage.removeItem(SESSION_TOKEN_KEY)
   filename = ''
   sha = null
   baseText = ''
@@ -319,6 +375,9 @@ $('logout').addEventListener('click', () => {
   $('auth-view').hidden = false
   $('token').focus()
 })
+
+const savedToken = sessionStorage.getItem(SESSION_TOKEN_KEY)
+if (savedToken) connect(savedToken)
 
 document.addEventListener('keydown', (event) => {
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's' && !$('editor-view').hidden) {
