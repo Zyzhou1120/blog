@@ -8,6 +8,3 @@ tags:
 description: 这是博客的第一篇文章。
 ---
 
-博客已经搭好，从这里开始记录。
-
-以后可以在 `source/_posts/` 中用 Markdown 写文章。文章保存后，本地预览会自动更新。
