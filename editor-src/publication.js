@@ -29,7 +29,16 @@ export function createPublicationTracker({ manifestUrl, api, onChange }) {
       if (!response.ok) throw new Error('Publication status unavailable')
       const manifest = await response.json()
       article = manifest.posts?.[wanted.name]
-      if (article?.sha === wanted.sha) state = 'published'
+      if (article?.sha === wanted.sha && article.url) {
+        const articleUrl = new URL(article.url, manifestUrl)
+        if (articleUrl.origin !== new URL(manifestUrl).origin) throw new Error('Invalid article URL')
+        articleUrl.searchParams.set('check', `${Date.now()}-${requestId}`)
+        const page = await fetch(articleUrl.href, { cache: 'no-store', credentials: 'omit' })
+        if (!page.ok) throw new Error('Article unavailable')
+        const document = new DOMParser().parseFromString(await page.text(), 'text/html')
+        const marker = document.querySelector('#article-container #blog-publication')
+        if (marker?.dataset.sha === wanted.sha && decodeURIComponent(marker.dataset.source) === wanted.name) state = 'published'
+      }
     } catch {
       state = 'unknown'
     }

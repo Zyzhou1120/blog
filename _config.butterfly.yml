@@ -35,4 +35,4 @@ busuanzi:
 
 CDN:
   option:
-    busuanzi: /js/article.js?v=1
+      busuanzi: /js/article.js?v=2

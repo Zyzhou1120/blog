@@ -1,6 +1,6 @@
 (() => {
   const scriptUrl = document.currentScript?.src
-  const marker = document.getElementById('blog-publication')
+  let marker = document.getElementById('blog-publication')
   const value = document.getElementById('busuanzi_value_page_pv')
   if (!value || !marker || !scriptUrl) return
 
@@ -15,14 +15,31 @@
       if (!post || post.sha === marker.dataset.sha) return false
       const latest = new URL(post.url, location.href)
       if (latest.origin !== location.origin) return false
-      const current = new URL(location.href)
-      if (current.searchParams.get('published') === post.sha) return false
-      const key = `blog-latest:${location.pathname}`
-      if (sessionStorage.getItem(key) === post.sha) return false
-      sessionStorage.setItem(key, post.sha)
-      latest.searchParams.set('published', post.sha)
-      latest.hash = location.hash
-      location.replace(latest.href)
+      // Fetch and verify the actual article. A cached redirect is not proof of freshness.
+      latest.searchParams.set('check', `${Date.now()}-${Math.random().toString(36).slice(2)}`)
+      const page = await fetch(latest, { cache: 'no-store', credentials: 'omit' })
+      if (!page.ok) return false
+      const updated = new DOMParser().parseFromString(await page.text(), 'text/html')
+      const next = updated.querySelector('#article-container')
+      const nextMarker = next?.querySelector('#blog-publication')
+      if (nextMarker?.dataset.sha !== post.sha || nextMarker?.dataset.source !== marker.dataset.source) return false
+      const container = document.getElementById('article-container')
+      if (!container) return false
+      // Do not execute scripts from a fetched document.
+      next.querySelectorAll('script, iframe, object, embed').forEach((node) => node.remove())
+      next.querySelectorAll('*').forEach((node) => {
+        for (const attr of [...node.attributes]) {
+          if (/^on/i.test(attr.name) || /^(?:javascript|vbscript):/i.test(attr.value.trim())) node.removeAttribute(attr.name)
+        }
+      })
+      container.replaceChildren(...next.childNodes)
+      marker = document.getElementById('blog-publication')
+      for (const selector of ['.post-title', '#post-meta .meta-firstline']) {
+        const from = updated.querySelector(selector)
+        const to = document.querySelector(selector)
+        if (from && to) to.replaceChildren(...from.childNodes)
+      }
+      if (updated.title) document.title = updated.title
       return true
     } catch { return false }
   }
@@ -77,7 +94,7 @@
   }
 
   async function start() {
-    if (await refreshIfStale()) return
+    void refreshIfStale()
     const url = new URL(location.href)
     // The revision query only bypasses the HTML cache, never creates a new counter.
     if (url.searchParams.has('published')) {
@@ -88,4 +105,13 @@
     else countOnce()
   }
   void start()
+  let refreshing = false
+  async function refresh() {
+    if (refreshing || document.visibilityState === 'hidden') return
+    refreshing = true
+    try { await refreshIfStale() } finally { refreshing = false }
+  }
+  setInterval(refresh, 20000)
+  window.addEventListener('focus', refresh)
+  document.addEventListener('visibilitychange', refresh)
 })()

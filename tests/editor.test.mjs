@@ -12,7 +12,7 @@ function reply(status, data) {
   return { ok: status >= 200 && status < 300, status, json: async () => data }
 }
 
-function createEditor({ savedToken = '', lastDocument = '', savedDraft = '', draftSha = 'old-sha', freshReads = false, raceOnPut = false } = {}) {
+function createEditor({ savedToken = '', lastDocument = '', savedDraft = '', draftSha = 'old-sha', freshReads = false, raceOnPut = false, staleHtml = false } = {}) {
   let remote = { sha: 'old-sha', text: original }
   let cached = { ...remote }
   let putCount = 0
@@ -33,6 +33,7 @@ function createEditor({ savedToken = '', lastDocument = '', savedDraft = '', dra
   window.fetch = async (url, options = {}) => {
     url = String(url)
     if (url.includes('publish-status.json')) return reply(200, { posts: { 'welcome.md': { sha: publishedSha, url: '/blog/2026/09/29/welcome/' } } })
+    if (url.includes('/blog/2026/09/29/welcome/')) return { ok: true, text: async () => `<article id="article-container">正文<span id="blog-publication" data-source="welcome.md" data-sha="${staleHtml ? 'old-sha' : publishedSha}"></span></article>` }
     if (url.includes('/actions/workflows/pages.yml/runs')) return reply(200, { workflow_runs: buildFailed ? [{ head_sha: 'commit-sha', status: 'completed', conclusion: 'failure' }] : [] })
     if (url === 'https://api.github.com/user') return reply(200, { login: 'Zyzhou1120' })
     if (url === 'https://api.github.com/repos/Zyzhou1120/blog') return reply(200, { permissions: { push: true } })
@@ -202,6 +203,21 @@ test('a failed build is visible without discarding the saved article', async () 
     await until(() => doc.getElementById('publication-state')?.textContent.includes('发布失败'))
     assert.match(doc.getElementById('markdown').value, /新增内容/)
     assert.equal(doc.getElementById('view-published').hidden, true)
+  } finally { editor.close() }
+})
+
+test('a new manifest with stale public HTML must not report published', async () => {
+  const editor = createEditor({ staleHtml: true })
+  try {
+    await logIn(editor.window)
+    const doc = editor.window.document
+    doc.getElementById('markdown').value += '\n4444\n'
+    doc.getElementById('publish').click()
+    await until(() => editor.putCount === 1 && !doc.getElementById('publish').disabled)
+    editor.publishRemote()
+    doc.getElementById('check-publication').click()
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    assert.doesNotMatch(doc.getElementById('publication-state').textContent, /已发布/)
   } finally { editor.close() }
 })
 

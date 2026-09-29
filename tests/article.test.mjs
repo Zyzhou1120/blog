@@ -9,7 +9,7 @@ async function visit({ storage = new Map(), path = '/blog/2026/09/29/welcome/', 
   let navigations = 0
   const virtualConsole = new VirtualConsole()
   virtualConsole.on('jsdomError', (error) => { if (/navigation/.test(error.message)) navigations += 1; else throw error })
-  const dom = new JSDOM('<span id="blog-publication" data-source="welcome.md" data-sha="published-sha"></span><span class="post-meta-pv-cv"><span id="busuanzi_value_page_pv"></span></span>', { url: `https://zyzhou1120.github.io${path}`, runScripts: 'outside-only', virtualConsole })
+  const dom = new JSDOM('<article id="article-container">2222<span id="blog-publication" data-source="welcome.md" data-sha="published-sha"></span></article><span class="post-meta-pv-cv"><span id="busuanzi_value_page_pv"></span></span>', { url: `https://zyzhou1120.github.io${path}`, runScripts: 'outside-only', virtualConsole })
   const { window } = dom
   let requests = 0
   const requestPages = []
@@ -20,7 +20,7 @@ async function visit({ storage = new Map(), path = '/blog/2026/09/29/welcome/', 
   } })
   Object.defineProperty(window.document, 'currentScript', { value: { src: 'https://zyzhou1120.github.io/blog/js/article.js' } })
   if (previousReload) window.sessionStorage.setItem('blog-latest:/blog/2026/09/29/welcome/', previousReload)
-  window.fetch = async () => ({ ok: true, json: async () => ({ posts: { 'welcome.md': { sha: publishedSha, url: '/blog/2026/09/29/welcome/' } } }) })
+  window.fetch = async (url) => String(url).includes('publish-status.json') ? ({ ok: true, json: async () => ({ posts: { 'welcome.md': { sha: publishedSha, url: '/blog/2026/09/29/welcome/' } } }) }) : ({ ok: true, text: async () => `<article id="article-container">2222<br>3333<br>4444<span id="blog-publication" data-source="welcome.md" data-sha="${publishedSha}"></span></article>` })
   const append = window.document.head.append.bind(window.document.head)
   window.document.head.append = (element) => {
     append(element)
@@ -67,14 +67,16 @@ test('a cache-busting query is removed before counting, and blocked storage neve
   } finally { versioned.close(); blocked.close() }
 })
 
-test('a stale article reloads the new version before counting and cannot enter a reload loop', async () => {
+test('stale pages update actual content even after a previous reload or versioned URL', async () => {
   const stale = await visit({ publishedSha: 'new-sha' })
   const retry = await visit({ publishedSha: 'new-sha', previousReload: 'new-sha' })
   const versioned = await visit({ publishedSha: 'new-sha', path: '/blog/2026/09/29/welcome/?published=new-sha' })
   try {
-    assert.equal(stale.navigations, 1)
-    assert.equal(stale.requests, 0)
-    assert.equal(stale.window.sessionStorage.getItem('blog-latest:/blog/2026/09/29/welcome/'), 'new-sha')
+    for (const page of [stale, retry, versioned]) {
+      assert.match(page.window.document.getElementById('article-container').textContent, /4444/)
+      assert.equal(page.window.document.getElementById('blog-publication').dataset.sha, 'new-sha')
+      assert.equal(page.navigations, 0)
+    }
     assert.equal(retry.navigations, 0)
     assert.equal(versioned.navigations, 0)
   } finally { stale.close(); retry.close(); versioned.close() }
