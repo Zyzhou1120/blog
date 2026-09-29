@@ -40,7 +40,7 @@ pnpm exec hexo new "文章标题"
   正文写在这里。
   ```
 
-提交到 `main` 后，GitHub Actions 会重新生成网站。可以在仓库的 **Actions** 页面查看发布结果。
+目前公开站点已上线，但自动发布工作流尚未启用。暂时在 GitHub 编辑文章后，网站不会自动更新。
 
 ## 从本地发布
 
@@ -52,6 +52,6 @@ git commit -m "Update blog"
 git push
 ```
 
-`.github/workflows/pages.yml` 会在每次推送到 `main` 后构建并发布。可以在仓库的 **Actions** 页面查看结果。
+自动发布工作流准备在 `.github/workflows/pages.yml`；启用后每次推送到 `main` 都会构建并发布。可以在仓库的 **Actions** 页面查看结果。
 
 构建脚本会根据仓库名生成正确的网址，无需为 GitHub Pages 手工修改 `_config.yml`。本地的 `url` 保持为 `http://localhost:4000`。
