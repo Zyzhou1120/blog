@@ -8,7 +8,7 @@
     "clean": "hexo clean",
     "deploy": "hexo deploy",
     "server": "pnpm build:editor && hexo server",
-    "test:editor": "pnpm build:editor && node --test tests/editor.test.mjs"
+    "test:editor": "pnpm build:editor && node --test tests/*.test.mjs"
   },
   "hexo": {
     "version": "8.1.2"
@@ -26,8 +26,10 @@
     "hexo-renderer-stylus": "^3.0.1",
     "hexo-server": "^3.0.0",
     "hexo-theme-butterfly": "^5.7.0",
+    "katex": "^0.18.9",
     "lucide": "^1.48.0",
     "marked": "^18.0.14",
+    "marked-katex-extension": "^5.1.13",
     "yaml": "^2.9.1"
   },
   "devDependencies": {

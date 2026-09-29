@@ -16,6 +16,8 @@ function createEditor({ savedToken = '', lastDocument = '', savedDraft = '', dra
   let remote = { sha: 'old-sha', text: original }
   let cached = { ...remote }
   let putCount = 0
+  let publishedSha = 'old-sha'
+  let buildFailed = false
   const dom = new JSDOM(html, {
     url: 'https://zyzhou1120.github.io/blog/editor/',
     runScripts: 'outside-only',
@@ -29,6 +31,9 @@ function createEditor({ savedToken = '', lastDocument = '', savedDraft = '', dra
   if (lastDocument) window.sessionStorage.setItem('blog-editor:last-document', lastDocument)
   if (savedDraft) window.localStorage.setItem(`blog-editor:draft:${lastDocument}`, JSON.stringify({ text: savedDraft, sha: draftSha }))
   window.fetch = async (url, options = {}) => {
+    url = String(url)
+    if (url.includes('publish-status.json')) return reply(200, { posts: { 'welcome.md': { sha: publishedSha, url: '/blog/2026/09/29/welcome/' } } })
+    if (url.includes('/actions/workflows/pages.yml/runs')) return reply(200, { workflow_runs: buildFailed ? [{ head_sha: 'commit-sha', status: 'completed', conclusion: 'failure' }] : [] })
     if (url === 'https://api.github.com/user') return reply(200, { login: 'Zyzhou1120' })
     if (url === 'https://api.github.com/repos/Zyzhou1120/blog') return reply(200, { permissions: { push: true } })
     if (url.endsWith('/contents/source/_posts?ref=main')) {
@@ -41,7 +46,7 @@ function createEditor({ savedToken = '', lastDocument = '', savedDraft = '', dra
         if (raceOnPut) remote = { sha: 'race-sha', text: changed }
         if (data.sha !== remote.sha) return reply(409, { message: `source/_posts/welcome.md does not match ${data.sha}` })
         remote = { sha: 'saved-sha', text: Buffer.from(data.content, 'base64').toString('utf8') }
-        return reply(200, { content: { sha: remote.sha } })
+        return reply(200, { content: { sha: remote.sha }, commit: { sha: 'commit-sha' } })
       }
       const file = options.cache === 'no-store' || freshReads ? remote : cached
       return reply(200, { sha: file.sha, content: Buffer.from(file.text).toString('base64') })
@@ -52,6 +57,8 @@ function createEditor({ savedToken = '', lastDocument = '', savedDraft = '', dra
   return {
     window,
     changeRemote() { remote = { sha: 'new-sha', text: changed } },
+    publishRemote() { publishedSha = remote.sha },
+    failBuild() { buildFailed = true },
     get putCount() { return putCount },
     close() { dom.window.close() },
   }
@@ -155,4 +162,91 @@ test('a server conflict shows a useful message instead of the raw SHA error', as
   } finally {
     editor.close()
   }
+})
+
+test('saving source stays pending until the published article matches, even on a second submit', async () => {
+  const editor = createEditor({ freshReads: true })
+  try {
+    await logIn(editor.window)
+    const doc = editor.window.document
+    const input = doc.getElementById('markdown')
+    input.value += '\n等待上线的正文\n'
+    input.dispatchEvent(new editor.window.Event('input', { bubbles: true }))
+    doc.getElementById('publish').click()
+    await until(() => editor.putCount === 1 && !doc.getElementById('publish').disabled)
+    assert.match(doc.getElementById('publication-state')?.textContent || '', /发布中/)
+    assert.equal(doc.getElementById('view-published').hidden, true)
+    doc.getElementById('publish').click()
+    await until(() => !doc.getElementById('publish').disabled)
+    assert.equal(editor.putCount, 1)
+    assert.match(doc.getElementById('message').textContent, /发布/)
+    editor.publishRemote()
+    doc.getElementById('check-publication').click()
+    await until(() => doc.getElementById('publication-state').textContent.includes('已发布'))
+    assert.equal(doc.getElementById('view-published').hidden, false)
+    assert.match(doc.getElementById('view-published').href, /welcome\/\?published=saved-sha$/)
+    assert.doesNotMatch(doc.getElementById('message').textContent, /正在|发布中/)
+  } finally { editor.close() }
+})
+
+test('a failed build is visible without discarding the saved article', async () => {
+  const editor = createEditor({ freshReads: true })
+  try {
+    await logIn(editor.window)
+    const doc = editor.window.document
+    doc.getElementById('markdown').value += '\n新增内容\n'
+    doc.getElementById('publish').click()
+    await until(() => editor.putCount === 1 && !doc.getElementById('publish').disabled)
+    editor.failBuild()
+    doc.getElementById('check-publication').click()
+    await until(() => doc.getElementById('publication-state')?.textContent.includes('发布失败'))
+    assert.match(doc.getElementById('markdown').value, /新增内容/)
+    assert.equal(doc.getElementById('view-published').hidden, true)
+  } finally { editor.close() }
+})
+
+test('toolbar formats selected body text, preserves metadata, and supports undo and redo', async () => {
+  const editor = createEditor()
+  try {
+    await logIn(editor.window)
+    const doc = editor.window.document
+    const input = doc.getElementById('markdown')
+    const start = input.value.indexOf('旧正文')
+    input.setSelectionRange(start, start + 3)
+    doc.querySelector('[data-command="bold"]').click()
+    assert.ok(input.value.includes('**旧正文**'))
+    assert.equal(doc.querySelector('#preview strong').textContent, '旧正文')
+    assert.ok(input.value.startsWith('---\ntitle: 欢迎\ndate: 2026-09-29\n---'))
+    doc.getElementById('undo').click()
+    assert.equal(input.value, original)
+    doc.getElementById('redo').click()
+    assert.ok(input.value.includes('**旧正文**'))
+    input.setSelectionRange(4, 6)
+    const before = input.value
+    doc.querySelector('[data-command="bold"]').click()
+    assert.equal(input.value, before)
+    assert.match(doc.getElementById('message').textContent, /正文/)
+    const previewButton = doc.querySelector('button[data-layout="preview"]')
+    previewButton.click()
+    assert.equal(doc.body.dataset.layout, 'preview')
+    assert.equal(previewButton.getAttribute('aria-pressed'), 'true')
+  } finally { editor.close() }
+})
+
+test('preview keeps ordinary line breaks and renders inserted formulas and tables', async () => {
+  const editor = createEditor()
+  try {
+    await logIn(editor.window)
+    const doc = editor.window.document
+    const input = doc.getElementById('markdown')
+    input.value += '第一行\n第二行'
+    input.dispatchEvent(new editor.window.Event('input', { bubbles: true }))
+    assert.ok(doc.querySelector('#preview br'))
+    input.setSelectionRange(input.value.length, input.value.length)
+    doc.querySelector('[data-command="math"]').click()
+    assert.ok(doc.querySelector('#preview .katex'))
+    input.setSelectionRange(input.value.length, input.value.length)
+    doc.querySelector('[data-command="table"]').click()
+    assert.equal(doc.querySelectorAll('#preview th').length, 2)
+  } finally { editor.close() }
 })

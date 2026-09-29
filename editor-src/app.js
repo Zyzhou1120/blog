@@ -1,9 +1,14 @@
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
 import { parse as parseYaml } from 'yaml'
+import markedKatex from 'marked-katex-extension'
+import { createPublicationTracker } from './publication.js'
+import { setupToolbar } from './toolbar.js'
 import {
   createIcons, SquarePen, KeyRound, ArrowRight, Menu, FilePlus2,
   Upload, LogOut, RefreshCw, ExternalLink, FileText, X,
+  Minus, Bold, Italic, Strikethrough, Sigma, Link, Image, Code, SquareCode,
+  Table2, Quote, List, ListOrdered, ListChecks, Undo2, Redo2, Columns2, Eye, Maximize, CircleHelp,
 } from 'lucide'
 
 const OWNER = 'Zyzhou1120'
@@ -13,7 +18,7 @@ const POSTS_PATH = 'source/_posts'
 const API = `https://api.github.com/repos/${OWNER}/${REPO}`
 const SESSION_TOKEN_KEY = 'blog-editor:token'
 const LAST_DOCUMENT_KEY = 'blog-editor:last-document'
-const icons = { SquarePen, KeyRound, ArrowRight, Menu, FilePlus2, Upload, LogOut, RefreshCw, ExternalLink, FileText, X }
+const icons = { SquarePen, KeyRound, ArrowRight, Menu, FilePlus2, Upload, LogOut, RefreshCw, ExternalLink, FileText, X, Minus, Bold, Italic, Strikethrough, Sigma, Link, Image, Code, SquareCode, Table2, Quote, List, ListOrdered, ListChecks, Undo2, Redo2, Columns2, Eye, Maximize, CircleHelp }
 const $ = (id) => document.getElementById(id)
 
 let token = ''
@@ -24,7 +29,48 @@ let baseText = ''
 let saveTimer = null
 let activeView = 'edit'
 
+marked.use(markedKatex({ throwOnError: false, trust: false }))
+marked.setOptions({ breaks: true })
 createIcons({ icons })
+const controls = setupToolbar({ showMessage })
+const siteRoot = new URL('../', location.href)
+const publication = createPublicationTracker({
+  manifestUrl: new URL('publish-status.json', siteRoot).href,
+  api: API,
+  onChange({ state, article, sha: publishedSha }) {
+    $('publication-bar').dataset.state = state
+    $('publication-state').textContent = {
+      unpublished: '尚未提交 · 草稿只保存在此浏览器',
+      checking: '正在检查公开网站的版本…',
+      publishing: '发布中 · 文章已保存，公开网站尚未更新',
+      published: '已发布 · 公开网站已包含这次保存',
+      failed: '发布失败 · 文章已保存，请查看发布记录',
+      unknown: '暂时无法确认发布状态，正在重试…',
+      delayed: '尚未确认上线，请检查发布记录或稍后重试',
+    }[state]
+    $('view-published').hidden = true
+    if (state === 'published' && article?.url) {
+      const url = new URL(article.url, siteRoot)
+      if (url.origin === siteRoot.origin && url.pathname.startsWith(siteRoot.pathname)) {
+        url.searchParams.set('published', publishedSha)
+        $('view-published').href = url.href
+        $('view-published').hidden = false
+      }
+    }
+    if ($('message').dataset.kind === 'publication') {
+      if (state === 'published') showMessage('文章已发布，点击“查看最新文章”查看。', false, 'publication')
+      if (state === 'failed') showMessage('文章已保存，但网站发布失败。请点击“发布记录”查看原因。', true, 'publication')
+    }
+  },
+})
+
+function trackPublication(commit = null) {
+  const key = `blog-editor:publication:${filename}`
+  if (commit) sessionStorage.setItem(key, JSON.stringify({ sha, commit }))
+  let saved = null
+  try { saved = JSON.parse(sessionStorage.getItem(key)) } catch { /* Ignore an obsolete local record. */ }
+  publication.watch(filename, sha, commit || (saved?.sha === sha ? saved.commit : null))
+}
 
 function encodedPath(path) {
   return path.split('/').map(encodeURIComponent).join('/')
@@ -72,9 +118,10 @@ function setStatus(value) {
   $('save-state').textContent = value
 }
 
-function showMessage(value, error = false) {
+function showMessage(value, error = false, kind = 'general') {
   const message = $('message')
   message.textContent = value
+  message.dataset.kind = kind
   message.classList.toggle('error', error)
   message.hidden = false
 }
@@ -105,7 +152,7 @@ function storeDraft() {
     setStatus('本地草稿已保存')
   } else {
     localStorage.removeItem(draftKey(filename))
-    setStatus('已同步')
+    setStatus(sha ? '已保存到仓库' : '本地草稿')
   }
 }
 
@@ -119,13 +166,14 @@ function renderPreview() {
     try { title = String(parseYaml(match[1])?.title || '') } catch { /* Show the body even with incomplete metadata. */ }
   }
   const titleHtml = title ? `<h1>${DOMPurify.sanitize(title, { ALLOWED_TAGS: [] })}</h1>` : ''
-  $('preview').innerHTML = DOMPurify.sanitize(titleHtml + marked.parse(body), { USE_PROFILES: { html: true } })
+  $('preview').innerHTML = DOMPurify.sanitize(titleHtml + marked.parse(body), { USE_PROFILES: { html: true, mathMl: true, svg: true } })
   $('preview').querySelectorAll('a').forEach((link) => {
     link.target = '_blank'
     link.rel = 'noopener noreferrer'
   })
   $('word-count').textContent = `${body.replace(/\s/g, '').length} 字`
   $('dirty-dot').hidden = !unsaved()
+  controls.update()
 }
 
 function renderPosts() {
@@ -175,7 +223,9 @@ function setDocument(name, text, currentSha) {
   $('message').hidden = true
   renderPreview()
   renderPosts()
-  setStatus('已同步')
+  controls.reset()
+  setStatus(currentSha ? '已保存到仓库' : '本地草稿')
+  trackPublication()
   $('sidebar').classList.remove('open')
 }
 
@@ -193,6 +243,7 @@ async function openPost(post, force = false) {
         if (draft.sha === sha) {
           $('markdown').value = draft.text
           renderPreview()
+          controls.reset()
           setStatus('本地草稿已恢复')
         } else {
           $('draft-copy').textContent = '远程文章已更新。恢复草稿后提交会覆盖远程内容。'
@@ -220,6 +271,7 @@ function createPost(title) {
   setDocument(name, '', null)
   $('markdown').value = text
   renderPreview()
+  controls.reset()
   storeDraft()
   $('markdown').focus()
   setView('edit')
@@ -228,45 +280,60 @@ function createPost(title) {
 function setView(view) {
   activeView = view
   document.body.dataset.view = view
+  document.body.dataset.layout = 'split'
   $('edit-tab').classList.toggle('active', view === 'edit')
   $('preview-tab').classList.toggle('active', view === 'preview')
 }
 
 async function publish() {
   if (!filename) return showMessage('请先选择或新建文章。', true)
-  if (!unsaved()) return showMessage('没有需要提交的修改。')
+  if (!unsaved()) {
+    await publication.check(true)
+    return showMessage(publication.state === 'published'
+      ? '这份内容已经发布，点击“查看最新文章”打开最新版本。'
+      : publication.state === 'failed'
+        ? '文章已保存，但网站发布失败。请点击“发布记录”查看原因。'
+        : '文章已保存到仓库，正在检查发布结果。请查看上方发布状态。', publication.state === 'failed', 'publication')
+  }
   clearTimeout(saveTimer)
   storeDraft()
   const button = $('publish')
+  const submittingName = filename
+  const submittingSha = sha
+  const text = $('markdown').value
   button.disabled = true
   setStatus('正在提交...')
   try {
-    const path = `/contents/${encodedPath(`${POSTS_PATH}/${filename}`)}`
-    if (sha) {
+    const path = `/contents/${encodedPath(`${POSTS_PATH}/${submittingName}`)}`
+    if (submittingSha) {
       const latest = await request(`${path}?ref=${BRANCH}`)
-      if (latest.sha !== sha) {
+      if (latest.sha !== submittingSha) {
         const error = new Error('远程文章已有新修改')
         error.status = 409
         throw error
       }
     }
-    const text = $('markdown').value
     const result = await request(path, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        message: `${sha ? 'Update' : 'Add'} post: ${filename}`,
+        message: `${submittingSha ? 'Update' : 'Add'} post: ${submittingName}`,
         content: encodeBase64(text),
         branch: BRANCH,
-        ...(sha ? { sha } : {}),
+        ...(submittingSha ? { sha: submittingSha } : {}),
       }),
     })
+    if (filename !== submittingName) {
+      await loadPosts()
+      return
+    }
     sha = result.content.sha
     baseText = text
-    localStorage.removeItem(draftKey(filename))
+    storeDraft()
     renderPreview()
-    setStatus('已提交到 GitHub')
-    showMessage('文章已提交到 GitHub，网站正在自动发布。稍后刷新公开页面查看。')
+    if (!unsaved()) setStatus('已保存到仓库')
+    trackPublication(result.commit?.sha)
+    showMessage('文章已提交到 GitHub，网站正在自动发布。稍后点击“查看最新文章”查看。', false, 'publication')
     try {
       await loadPosts()
     } catch {
@@ -305,6 +372,7 @@ async function connect(nextToken) {
       setDocument(lastDocument, '', null)
       $('markdown').value = draft.text
       renderPreview()
+      controls.reset()
       setStatus('本地草稿已恢复')
     } else if (posts[0]) {
       await openPost(posts[0])
@@ -343,6 +411,7 @@ $('new-form').addEventListener('submit', (event) => {
 $('close-dialog').addEventListener('click', () => $('new-dialog').close())
 $('cancel-new').addEventListener('click', () => $('new-dialog').close())
 $('publish').addEventListener('click', publish)
+$('check-publication').addEventListener('click', () => publication.check(true))
 $('reload-post').addEventListener('click', () => {
   if (filename && sha) openPost({ name: filename }, true)
 })
@@ -355,6 +424,7 @@ $('restore-draft').addEventListener('click', () => {
   if (draft) $('markdown').value = draft.text
   $('draft-notice').hidden = true
   renderPreview()
+  controls.reset()
   setStatus('本地草稿已恢复')
 })
 $('dismiss-draft').addEventListener('click', () => {
@@ -367,6 +437,7 @@ $('sidebar-toggle').addEventListener('click', () => $('sidebar').classList.toggl
 $('logout').addEventListener('click', () => {
   storeDraft()
   token = ''
+  publication.stop()
   sessionStorage.removeItem(SESSION_TOKEN_KEY)
   filename = ''
   sha = null

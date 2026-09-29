@@ -27,3 +27,12 @@ aside:
 footer:
   owner:
     enable: true
+
+busuanzi:
+  site_uv: false
+  site_pv: false
+  page_pv: true
+
+CDN:
+  option:
+    busuanzi: /js/article.js?v=1

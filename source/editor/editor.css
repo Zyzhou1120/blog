@@ -564,7 +564,7 @@ svg {
 .message {
   position: absolute;
   right: 22px;
-  bottom: 20px;
+  bottom: 52px;
   max-width: min(440px, calc(100% - 44px));
   padding: 12px 16px;
   background: #e0f1eb;
@@ -576,6 +576,51 @@ svg {
   line-height: 1.5;
   z-index: 5;
 }
+.publication-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 20px;
+  padding: 10px 22px;
+  border-bottom: 1px solid #e3e9ec;
+  background: #f5f8fa;
+  color: #637780;
+  font-size: 12px;
+  min-height: 42px;
+}
+.publication-bar[data-state="published"] { background: #eef7f3; color: #176d62; }
+.publication-bar[data-state="publishing"], .publication-bar[data-state="delayed"] { background: #fff9eb; color: #856326; }
+.publication-bar[data-state="failed"] { background: #fff0ee; color: #a43838; }
+.publication-actions { display: flex; gap: 16px; align-items: center; }
+.publication-actions a, .publication-actions button { color: #176d62; font: inherit; font-weight: 650; }
+.publication-actions a { display: inline-flex; align-items: center; gap: 5px; }
+.publication-actions button { border: 0; background: none; padding: 0; }
+.publication-actions svg { width: 13px; height: 13px; }
+.markdown-toolbar { display: flex; flex-wrap: wrap; align-items: center; padding: 8px 12px; gap: 6px; border-bottom: 1px solid #dce4e7; background: #fff; }
+.toolbar-group { display: flex; align-items: center; gap: 2px; padding-right: 6px; border-right: 1px solid #e2e8eb; }
+.toolbar-group:last-child { border: 0; padding-right: 0; }
+.toolbar-views { margin-left: auto; }
+.markdown-toolbar button { border: 0; border-radius: 4px; background: transparent; color: #53646b; min-width: 30px; height: 32px; padding: 5px; display: grid; place-items: center; font-size: 13px; font-weight: 700; }
+.markdown-toolbar button:hover, .markdown-toolbar button[aria-pressed="true"] { background: #e4efec; color: #176d62; }
+.markdown-toolbar button:disabled { opacity: .3; cursor: default; }
+.markdown-toolbar button:focus-visible { outline: 2px solid #176d62; outline-offset: 1px; }
+.source-editor { display: flex; flex: 1; min-height: 0; min-width: 0; overflow: hidden; }
+#line-numbers { flex: none; width: 52px; padding: 24px 10px; margin: 0; overflow: hidden; background: #f5f7f8; color: #91a0a7; border-right: 1px solid #e7ecef; text-align: right; user-select: none; font: 14px/1.8 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+#markdown { flex: 1; min-width: 0; padding-left: 18px; }
+.editor-footer { display: flex; justify-content: space-between; align-items: center; gap: 10px; min-height: 34px; border-top: 1px solid #dce4e7; padding: 6px 18px; color: #7a8b93; font-size: 11px; }
+.editor-footer > div { display: flex; align-items: center; gap: 14px; }
+.editor-footer label { display: flex; align-items: center; gap: 5px; }
+.editor-footer input { accent-color: #176d62; }
+.editor-footer button { color: #58716d; border: 0; background: none; font: inherit; }
+.help-content { padding: 24px; font-size: 13px; line-height: 1.8; }
+.help-content kbd { background: #edf2f3; border-radius: 3px; padding: 2px 4px; font: inherit; }
+.help-dialog { width: min(100% - 28px, 530px); }
+body[data-layout="edit"] .panes, body[data-layout="preview"] .panes { grid-template-columns: minmax(0, 1fr); }
+body[data-layout="edit"] .preview-pane, body[data-layout="preview"] .edit-pane { display: none; }
+body.focus-mode .workbench { grid-template-columns: minmax(0, 1fr); }
+body.focus-mode .sidebar { display: none; }
+.preview-content .katex-display { overflow-x: auto; overflow-y: hidden; padding: 10px 0; }
 .message.error {
   background: #fff1f0;
   border-color: #f2cbca;
@@ -704,6 +749,14 @@ svg {
   #markdown {
     padding: 19px 16px;
   }
+  #line-numbers { width: 38px; padding: 19px 7px; }
+  .publication-bar { padding: 8px 13px; font-size: 11px; }
+  .publication-actions { gap: 13px; }
+  .markdown-toolbar { padding: 5px 7px; gap: 3px; }
+  .toolbar-group { gap: 0; padding-right: 3px; }
+  .markdown-toolbar button { min-width: 27px; height: 29px; }
+  .toolbar-views { margin-left: 0; }
+  .editor-footer { padding: 6px 10px; }
   .preview-content {
     padding: 20px 18px 50px;
   }

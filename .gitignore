@@ -5,6 +5,7 @@ db.json
 node_modules/
 public/
 source/editor/editor.js
+source/vendor/katex/
 _config.pages.yml
 .deploy*/
 _multiconfig.yml
