@@ -4,6 +4,7 @@ import { parse as parseYaml } from 'yaml'
 import markedKatex from 'marked-katex-extension'
 import { createPublicationTracker } from './publication.js'
 import { setupToolbar } from './toolbar.js'
+import { liveEndpoint, liveRequest, liveUrl } from './live-api.js'
 import {
   createIcons, SquarePen, KeyRound, ArrowRight, Menu, FilePlus2,
   Upload, LogOut, RefreshCw, ExternalLink, FileText, X,
@@ -28,6 +29,7 @@ let sha = null
 let baseText = ''
 let saveTimer = null
 let activeView = 'edit'
+let liveCheck = 0
 
 marked.use(markedKatex({ throwOnError: false, trust: false }))
 marked.setOptions({ breaks: true })
@@ -65,11 +67,41 @@ const publication = createPublicationTracker({
 })
 
 function trackPublication(commit = null) {
+  if (liveEndpoint) {
+    void checkLivePublication()
+    return
+  }
   const key = `blog-editor:publication:${filename}`
   if (commit) sessionStorage.setItem(key, JSON.stringify({ sha, commit }))
   let saved = null
   try { saved = JSON.parse(sessionStorage.getItem(key)) } catch { /* Ignore an obsolete local record. */ }
   publication.watch(filename, sha, commit || (saved?.sha === sha ? saved.commit : null))
+}
+
+async function checkLivePublication() {
+  const check = ++liveCheck
+  const name = filename
+  const wanted = sha
+  $('publication-bar').dataset.state = 'checking'
+  $('publication-state').textContent = wanted ? '正在核对已上线内容…' : '尚未发布 · 草稿只保存在此浏览器'
+  $('view-published').hidden = true
+  if (!wanted) return false
+  try {
+    const post = await liveRequest(`/posts/${encodeURIComponent(name)}`)
+    if (check !== liveCheck || filename !== name || sha !== wanted) return false
+    const matches = post.sha === wanted && post.text === baseText
+    $('publication-bar').dataset.state = matches ? 'published' : 'publishing'
+    $('publication-state').textContent = matches ? '已发布 · 访客可立即读取，已备份到 GitHub' : '线上版本与当前内容不同，请重新载入文章'
+    $('view-published').href = liveUrl(name, siteRoot).href
+    $('view-published').hidden = !matches
+    return matches
+  } catch {
+    if (check === liveCheck) {
+      $('publication-bar').dataset.state = 'unknown'
+      $('publication-state').textContent = '暂时无法确认上线，请稍后点击“检查发布”'
+    }
+    return false
+  }
 }
 
 function encodedPath(path) {
@@ -152,7 +184,7 @@ function storeDraft() {
     setStatus('本地草稿已保存')
   } else {
     localStorage.removeItem(draftKey(filename))
-    setStatus(sha ? '已保存到仓库' : '本地草稿')
+    setStatus(sha ? (liveEndpoint ? '已保存' : '已保存到仓库') : '本地草稿')
   }
 }
 
@@ -204,8 +236,8 @@ function renderPosts() {
 }
 
 async function loadPosts() {
-  const result = await request(`/contents/${POSTS_PATH}?ref=${BRANCH}`)
-  posts = result.filter((item) => item.type === 'file' && item.name.endsWith('.md'))
+  const result = liveEndpoint ? await liveRequest('/posts') : await request(`/contents/${POSTS_PATH}?ref=${BRANCH}`)
+  posts = result.filter((item) => (liveEndpoint || item.type === 'file') && item.name.endsWith('.md'))
     .sort((a, b) => b.name.localeCompare(a.name, 'zh-CN'))
   renderPosts()
 }
@@ -234,8 +266,8 @@ async function openPost(post, force = false) {
   storeDraft()
   setStatus('正在读取...')
   try {
-    const result = await request(`/contents/${encodedPath(`${POSTS_PATH}/${post.name}`)}?ref=${BRANCH}`)
-    setDocument(post.name, decodeBase64(result.content), result.sha)
+    const result = liveEndpoint ? await liveRequest(`/posts/${encodeURIComponent(post.name)}`) : await request(`/contents/${encodedPath(`${POSTS_PATH}/${post.name}`)}?ref=${BRANCH}`)
+    setDocument(post.name, liveEndpoint ? result.text : decodeBase64(result.content), result.sha)
     const saved = localStorage.getItem(draftKey(post.name))
     if (saved) {
       const draft = JSON.parse(saved)
@@ -287,6 +319,7 @@ function setView(view) {
 
 async function publish() {
   if (!filename) return showMessage('请先选择或新建文章。', true)
+  if (liveEndpoint) return publishLive()
   if (!unsaved()) {
     await publication.check(true)
     return showMessage(publication.state === 'published'
@@ -348,6 +381,41 @@ async function publish() {
   }
 }
 
+async function publishLive() {
+  if (!unsaved()) {
+    const confirmed = await checkLivePublication()
+    return showMessage(confirmed ? '这份内容已经上线，可以查看最新文章。' : '尚未确认上线，请查看上方状态。', !confirmed)
+  }
+  clearTimeout(saveTimer)
+  storeDraft()
+  const name = filename
+  const text = $('markdown').value
+  const previousSha = sha
+  liveCheck += 1
+  $('publish').disabled = true
+  $('view-published').hidden = true
+  setStatus('正在发布…')
+  $('publication-bar').dataset.state = 'publishing'
+  $('publication-state').textContent = '正在保存文章并通知访客…'
+  try {
+    const post = await liveRequest(`/posts/${encodeURIComponent(name)}`, { method: 'PUT', body: JSON.stringify({ text, sha: previousSha }) }, token)
+    if (filename !== name) { await loadPosts(); return }
+    sha = post.sha
+    baseText = text
+    storeDraft()
+    renderPreview()
+    const confirmed = await checkLivePublication()
+    showMessage(confirmed ? '发布成功，阅读页会自动更新。' : '文章已保存，正在等待线上核验，请点击“检查发布”。', !confirmed)
+    try { await loadPosts() } catch { /* A list refresh cannot undo a confirmed save. */ }
+  } catch (error) {
+    setStatus('发布未完成 · 草稿已保留')
+    $('publication-bar').dataset.state = 'unknown'
+    $('publication-state').textContent = '未确认发布成功，请稍后重试；草稿仍在此浏览器'
+    if (isConflict(error)) $('conflict-notice').hidden = false
+    showMessage(showError(error), true)
+  } finally { $('publish').disabled = false }
+}
+
 async function connect(nextToken) {
   token = nextToken
   $('auth-button').disabled = true
@@ -357,6 +425,7 @@ async function connect(nextToken) {
     if (account.login.toLowerCase() !== OWNER.toLowerCase()) throw new Error(`此编辑页仅允许 ${OWNER} 登录。`)
     const repository = await request('')
     if (repository.permissions?.push === false) throw new Error('此令牌没有仓库写入权限。请授予 Contents 读写权限。')
+    if (liveEndpoint) await liveRequest('/sync', { method: 'POST' }, token)
     await loadPosts()
     sessionStorage.setItem(SESSION_TOKEN_KEY, token)
     $('account-name').textContent = `@${account.login}`
@@ -411,13 +480,16 @@ $('new-form').addEventListener('submit', (event) => {
 $('close-dialog').addEventListener('click', () => $('new-dialog').close())
 $('cancel-new').addEventListener('click', () => $('new-dialog').close())
 $('publish').addEventListener('click', publish)
-$('check-publication').addEventListener('click', () => publication.check(true))
+$('check-publication').addEventListener('click', () => liveEndpoint ? checkLivePublication() : publication.check(true))
 $('reload-post').addEventListener('click', () => {
   if (filename && sha) openPost({ name: filename }, true)
 })
 $('reload-conflict').addEventListener('click', () => openPost({ name: filename }, true))
 $('refresh-posts').addEventListener('click', async () => {
-  try { await loadPosts() } catch (error) { showMessage(showError(error), true) }
+  try {
+    if (liveEndpoint) await liveRequest('/sync', { method: 'POST' }, token)
+    await loadPosts()
+  } catch (error) { showMessage(showError(error), true) }
 })
 $('restore-draft').addEventListener('click', () => {
   const draft = JSON.parse(localStorage.getItem(draftKey(filename)))
@@ -438,6 +510,7 @@ $('logout').addEventListener('click', () => {
   storeDraft()
   token = ''
   publication.stop()
+  liveCheck += 1
   sessionStorage.removeItem(SESSION_TOKEN_KEY)
   filename = ''
   sha = null
@@ -448,6 +521,12 @@ $('logout').addEventListener('click', () => {
 })
 
 const savedToken = sessionStorage.getItem(SESSION_TOKEN_KEY)
+if (liveEndpoint) {
+  const notice = document.createElement('p')
+  notice.className = 'auth-note'
+  notice.textContent = '实时发布已启用。令牌仅用于 GitHub 和你自己的发布服务，不会写入文章数据库。'
+  $('auth-form').append(notice)
+}
 if (savedToken) connect(savedToken)
 
 document.addEventListener('keydown', (event) => {

@@ -9,3 +9,7 @@ source/vendor/katex/
 _config.pages.yml
 .deploy*/
 _multiconfig.yml
+.wrangler/
+.dev.vars*
+.env*
+source/js/live.js

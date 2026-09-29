@@ -1,0 +1,18 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "zyzhou-blog-live",
+  "main": "worker.js",
+  "compatibility_date": "2026-09-29",
+  "workers_dev": true,
+  "vars": {
+    "SITE_ORIGIN": "https://zyzhou1120.github.io",
+    "OWNER": "Zyzhou1120",
+    "REPO": "blog",
+    "BRANCH": "main"
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "BLOG", "class_name": "Blog" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Blog"] }],
+  "observability": { "enabled": false }
+}

@@ -1,3 +1,4 @@
 allowBuilds:
   esbuild: true
   hexo-util: true
+  workerd: true

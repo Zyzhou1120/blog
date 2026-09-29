@@ -5,6 +5,7 @@
   if (!value || !marker || !scriptUrl) return
 
   async function refreshIfStale() {
+    if (window.blogLiveEnabled) return false
     try {
       const url = new URL('../publish-status.json', scriptUrl)
       url.searchParams.set('check', Date.now())
@@ -22,6 +23,7 @@
       const updated = new DOMParser().parseFromString(await page.text(), 'text/html')
       const next = updated.querySelector('#article-container')
       const nextMarker = next?.querySelector('#blog-publication')
+      if (window.blogLiveEnabled) return false
       if (nextMarker?.dataset.sha !== post.sha || nextMarker?.dataset.source !== marker.dataset.source) return false
       const container = document.getElementById('article-container')
       if (!container) return false
