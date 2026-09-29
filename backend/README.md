@@ -5,7 +5,7 @@
 ## 启用
 
 1. 博主本人注册/登录 Cloudflare。无需购买域名或开通付费套餐。
-2. 在项目目录运行 `pnpm exec wrangler login --scopes account:read user:read workers_scripts:write offline_access`，由本人完成浏览器授权。
+2. 在项目目录运行 `pnpm exec wrangler login --scopes account:read user:read workers_scripts:write`，由本人完成浏览器授权。
 3. 运行 `pnpm exec wrangler deploy --config backend/wrangler.jsonc`。配置会同时创建 SQLite Durable Object，无需另外创建数据库。
 4. 将部署返回的 HTTPS `workers.dev` 地址写入 `realtime.config.json` 的 `endpoint`。不要写入任何令牌。
 5. 使用博主已有 GitHub 令牌向服务的 `POST /sync` 发送 `Authorization: Bearer …`，导入仓库中的文章；检查公开 `GET /posts` 和 `GET /posts/welcome.md`。令牌通过请求头传输，不能放进 URL、日志或配置文件。

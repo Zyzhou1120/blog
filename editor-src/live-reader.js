@@ -59,8 +59,6 @@ async function start() {
     if (reader) reader.textContent = '实时阅读服务尚未启用，请从首页打开文章。'
     return
   }
-  // Prevent an older static build from replacing a newer live article.
-  window.blogLiveEnabled = true
   const name = reader ? new URL(location.href).searchParams.get('post') : decodeURIComponent(document.getElementById('blog-publication')?.dataset.source || '')
   const home = location.pathname === root.pathname || location.pathname === `${root.pathname}index.html`
   const archive = location.pathname.startsWith(`${root.pathname}archives/`)
@@ -80,7 +78,12 @@ async function start() {
     if (syncing) { again = true; return }
     syncing = true
     try {
-      if (name) renderPost(content(await liveRequest(`/posts/${encodeURIComponent(name)}`)))
+      if (name) {
+        const post = await liveRequest(`/posts/${encodeURIComponent(name)}`)
+        // Only disable static refresh after a live response has actually arrived.
+        window.blogLiveEnabled = true
+        renderPost(content(post))
+      }
       const list = await liveRequest('/posts')
       const posts = []
       for (const item of list) {

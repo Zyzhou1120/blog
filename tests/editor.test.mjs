@@ -2,9 +2,12 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { JSDOM } from 'jsdom'
+import { build } from 'esbuild'
 
 const html = readFileSync('source/editor/index.html', 'utf8').replace(/^---\nlayout: false\n---\n/, '')
-const script = readFileSync('source/editor/editor.js', 'utf8')
+// Exercise the static publishing fallback regardless of the production endpoint.
+const staticBundle = await build({ entryPoints: ['editor-src/app.js'], bundle: true, format: 'iife', write: false, plugins: [{ name: 'static-test-config', setup(b) { b.onLoad({ filter: /realtime\.config\.json$/ }, () => ({ contents: '{"endpoint":""}', loader: 'json' })) } }] })
+const script = staticBundle.outputFiles[0].text
 const original = '---\ntitle: 欢迎\ndate: 2026-09-29\n---\n\n旧正文\n'
 const changed = '---\ntitle: 欢迎\ndate: 2026-09-29\n---\n\n其他页面的新正文\n'
 
