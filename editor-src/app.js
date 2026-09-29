@@ -266,7 +266,7 @@ async function publish() {
     localStorage.removeItem(draftKey(filename))
     renderPreview()
     setStatus('已提交到 GitHub')
-    showMessage('文章已提交到 GitHub。公开站点目前仍需手动部署。')
+    showMessage('文章已提交到 GitHub，网站正在自动发布。稍后刷新公开页面查看。')
     try {
       await loadPosts()
     } catch {

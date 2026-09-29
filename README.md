@@ -30,7 +30,7 @@ pnpm exec hexo new "文章标题"
 
 首次使用时，在 GitHub 创建细粒度个人访问令牌：Repository access 只选 `Zyzhou1120/blog`，Repository permissions 中把 **Contents** 设为 **Read and write**。在编辑页输入令牌，不要把令牌发给别人或写进文章。令牌保存在当前标签页的会话中，刷新后自动连接；关闭标签页或点击退出编辑后清除。
 
-当前站点仍需手动部署，因此编辑页提交文章后，公开博客不会立即更新。自动发布工作流配置完成后，提交到 `main` 就会触发网站更新。
+提交文章后，GitHub Actions 会自动构建并发布博客。编辑器右侧预览会立即更新；公开页面需要等待工作流完成，再刷新查看。可以在仓库的 **Actions** 页面查看发布进度。
 
 ## 在 GitHub 网页编辑文章
 
@@ -48,7 +48,7 @@ pnpm exec hexo new "文章标题"
   正文写在这里。
   ```
 
-目前公开站点已上线，但自动发布工作流尚未启用。暂时在 GitHub 编辑文章后，网站不会自动更新。
+在 GitHub 保存文章后，工作流也会自动构建并发布博客。发布完成后刷新公开页面。
 
 ## 从本地发布
 
@@ -60,6 +60,6 @@ git commit -m "Update blog"
 git push
 ```
 
-自动发布工作流准备在 `.github/workflows/pages.yml`；启用后每次推送到 `main` 都会构建并发布。可以在仓库的 **Actions** 页面查看结果。
+自动发布工作流在 `.github/workflows/pages.yml`；每次推送到 `main` 都会构建并发布。可以在仓库的 **Actions** 页面查看结果。
 
 构建脚本会根据仓库名生成正确的网址，无需为 GitHub Pages 手工修改 `_config.yml`。本地的 `url` 保持为 `http://localhost:4000`。
