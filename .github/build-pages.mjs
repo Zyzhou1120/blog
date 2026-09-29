@@ -13,6 +13,7 @@ const url = name.toLowerCase() === `${owner.toLowerCase()}.github.io`
   : `${baseUrl}/${name}`
 
 writeFileSync('_config.pages.yml', `url: ${url}\n`)
+execFileSync('pnpm', ['build:editor'], { stdio: 'inherit' })
 execFileSync('pnpm', ['exec', 'hexo', 'generate', '--config', '_config.yml,_config.pages.yml'], {
   stdio: 'inherit',
 })

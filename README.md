@@ -24,7 +24,15 @@ pnpm exec hexo new "文章标题"
 
 编辑生成的 `source/_posts/文章标题.md`。修改站名和作者时，编辑 `_config.yml` 中的 `title`、`author` 和 `description`。
 
-## 在浏览器中编辑文章
+## 在博客网页编辑文章
+
+打开 <https://zyzhou1120.github.io/blog/editor/>。左侧写 Markdown，右侧实时预览；可以新建文章、打开旧文章、恢复本地草稿，然后提交到 GitHub。
+
+首次使用时，在 GitHub 创建细粒度个人访问令牌：Repository access 只选 `Zyzhou1120/blog`，Repository permissions 中把 **Contents** 设为 **Read and write**。在编辑页输入令牌，不要把令牌发给别人或写进文章。令牌仅在当前页面内存中使用，刷新后需重新输入。
+
+当前站点仍需手动部署，因此编辑页提交文章后，公开博客不会立即更新。自动发布工作流配置完成后，提交到 `main` 就会触发网站更新。
+
+## 在 GitHub 网页编辑文章
 
 博客网址只用于阅读。登录 GitHub 后，打开 <https://github.com/Zyzhou1120/blog/tree/main/source/_posts>：
 

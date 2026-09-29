@@ -4,6 +4,7 @@ db.json
 *.log
 node_modules/
 public/
+source/editor/editor.js
 _config.pages.yml
 .deploy*/
 _multiconfig.yml
