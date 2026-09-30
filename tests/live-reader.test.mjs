@@ -10,15 +10,17 @@ const until = async (condition) => {
   throw new Error('Timed out waiting for live content')
 }
 
-function fixture({ generic = false, home = false } = {}) {
+function fixture({ generic = false, home = false, categories = false, categoryQuery = '' } = {}) {
   let post = { name: 'welcome.md', sha: 'new-sha', text: '---\ntitle: 新标题\ndate: 2026-09-29\n---\n2222\n3333\n4444', updated: '2026-09-29T15:00:00Z' }
   const html = home ? '<div id="recent-posts"><div class="recent-post-items"></div></div>' : generic ? '<div id="live-reader">正在读取</div>' : '<div id="post"><h1 class="post-title">旧标题</h1><div id="article-container">2222<span id="blog-publication" data-source="welcome.md" data-sha="old-sha"></span></div></div>'
-  const dom = new JSDOM(html, { url: `https://zyzhou1120.github.io/blog/${home ? '' : generic ? 'read/?post=welcome.md' : '2026/09/29/welcome/'}`, runScripts: 'outside-only', pretendToBeVisual: true })
+  const categoryHtml = '<div class="card-categories"><ul id="aside-cat-list"><li>随笔</li></ul></div>' + (categories ? '<div id="page"><div class="page-title">分类</div><div class="category-lists">随笔</div></div>' : '')
+  const dom = new JSDOM(html + categoryHtml, { url: `https://zyzhou1120.github.io/blog/${categories ? 'categories/' + categoryQuery : home ? '' : generic ? 'read/?post=welcome.md' : '2026/09/29/welcome/'}`, runScripts: 'outside-only', pretendToBeVisual: true })
   const { window } = dom
   window.TextEncoder = TextEncoder
   window.AbortSignal = AbortSignal
   Object.defineProperty(window.document, 'currentScript', { value: { src: 'https://zyzhou1120.github.io/blog/js/live.js' } })
   let socket
+  let revision = 0
   window.WebSocket = class {
     static OPEN = 1
     static CONNECTING = 0
@@ -28,7 +30,7 @@ function fixture({ generic = false, home = false } = {}) {
   }
   window.fetch = async (url) => ({ ok: true, json: async () => String(url).endsWith('/posts') ? [{ name: post.name, sha: post.sha }] : { ...post } })
   window.eval(script)
-  return { window, update(text) { post = { ...post, sha: 'third-sha', text }; socket.onmessage({ data: JSON.stringify({ type: 'updated', name: post.name, sha: post.sha }) }) }, close: () => window.close() }
+  return { window, update(text) { post = { ...post, sha: `revision-${++revision}`, text }; socket.onmessage({ data: JSON.stringify({ type: 'updated', name: post.name, sha: post.sha }) }) }, close: () => window.close() }
 }
 
 test('an ordinary old article loads current content and reacts to live publication without navigation', async () => {
@@ -43,6 +45,45 @@ test('an ordinary old article loads current content and reacts to live publicati
     assert.equal(f.window.location.pathname, '/blog/2026/09/29/welcome/')
     assert.equal(f.window.blogLiveEnabled, true)
   } finally { f.close() }
+})
+
+test('moving an article updates the category index and sidebar without waiting for a static build', async () => {
+  const page = fixture({ categories: true })
+  try {
+    await until(() => page.window.blogLiveEnabled)
+    page.update('---\ntitle: 深度学习引入\ncategories:\n  - 深度学习\n---\n正文')
+    await until(() => page.window.document.querySelector('#aside-cat-list').textContent.includes('深度学习'))
+    assert.equal(page.window.document.querySelector('#aside-cat-list').textContent.includes('随笔'), false)
+    assert.match(page.window.document.querySelector('.category-lists').textContent, /深度学习/)
+    assert.match(page.window.document.querySelector('.category-lists a').href, /categories\/\?category=/)
+  } finally { page.close() }
+})
+
+test('a category lists moved articles immediately and removes them when moved away', async () => {
+  const page = fixture({ categories: true, categoryQuery: '?category=机器学习&category=深度学习' })
+  try {
+    await until(() => page.window.document.querySelector('.category-lists').textContent.includes('暂无文章'))
+    page.update('---\ntitle: 深度学习引入\ncategories:\n  - 机器学习\n  - 深度学习\n---\n正文')
+    await until(() => page.window.document.querySelector('.category-lists .article-sort-item-title'))
+    assert.equal(page.window.document.querySelector('.category-lists .article-sort-item-title').textContent, '深度学习引入')
+    assert.equal(page.window.document.querySelector('#aside-cat-list ul .card-category-list-name').textContent, '深度学习')
+    // A new publication must have a new SHA, as the production backend does.
+    page.update('---\ntitle: 深度学习引入\ncategories: 随笔\n---\n正文')
+    await until(() => page.window.document.querySelector('.category-lists').textContent.includes('暂无文章'))
+    assert.equal(page.window.document.querySelector('.category-lists .article-sort-item-title'), null)
+  } finally { page.close() }
+})
+
+test('homepage and generic reader retain visible category links after live rendering', async () => {
+  const pages = [fixture({ home: true }), fixture({ generic: true })]
+  try {
+    await until(() => pages[0].window.document.querySelector('.article-title') && pages[1].window.document.querySelector('#blog-publication'))
+    for (const page of pages) page.update('---\ntitle: 深度学习引入\ncategories: 深度学习\n---\n正文')
+    for (const page of pages) {
+      await until(() => page.window.document.querySelector('.article-meta__categories'))
+      assert.equal(page.window.document.querySelector('.article-meta__categories').textContent, '深度学习')
+    }
+  } finally { pages.forEach((page) => page.close()) }
 })
 
 test('new posts can be read and listed before a static page has been built', async () => {

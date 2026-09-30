@@ -3,6 +3,7 @@ import { marked } from 'marked'
 import { parse } from 'yaml'
 import mathExtension from '../shared/math.cjs'
 import { liveEndpoint, liveRequest, liveUrl } from './live-api.js'
+import { categoryPaths, categoryUrl, inCategory, renderCategories } from './categories.js'
 
 marked.use(mathExtension())
 marked.setOptions({ breaks: true })
@@ -14,7 +15,7 @@ function content(post) {
   const match = post.text.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/)
   let meta = {}
   try { meta = match ? parse(match[1], { maxAliasCount: 20 }) || {} : {} } catch { /* Still display a readable article. */ }
-  return { ...post, title: String(meta.title || post.name.replace(/\.md$/, '')), date: String(meta.date || '').slice(0, 10), description: String(meta.description || ''), categories: [meta.categories || []].flat().map(String), body: match ? post.text.slice(match[0].length) : post.text }
+  return { ...post, title: String(meta.title || post.name.replace(/\.md$/, '')), date: String(meta.date || '').slice(0, 10), description: String(meta.description || ''), categoryPaths: categoryPaths(meta.categories), body: match ? post.text.slice(match[0].length) : post.text }
 }
 function element(tag, className, text) {
   const node = document.createElement(tag)
@@ -44,13 +45,31 @@ function renderPost(post) {
   else if (reader) target.prepend(element('h1', '', post.title))
   document.title = `${post.title} | 我的博客`
   const meta = document.querySelector('#post-meta .meta-firstline')
-  if (meta) meta.textContent = `发表于 ${post.date} · 更新于 ${new Date(post.updated).toLocaleString('zh-CN')} ${post.categories.length ? ' · ' + post.categories.join('、') : ''}`
+  if (meta) {
+    meta.textContent = `发表于 ${post.date} · 更新于 ${new Date(post.updated).toLocaleString('zh-CN')}`
+    appendCategories(meta, post)
+  } else if (reader) {
+    const info = element('div', 'article-meta-wrap', post.date)
+    appendCategories(info, post)
+    const heading = target.querySelector('h1')
+    if (heading) heading.after(info)
+    else target.prepend(info)
+  }
   const tags = document.querySelector('.tag_share')
   if (tags) tags.hidden = true // Static tag links can refer to metadata from an older build.
   const toc = document.getElementById('card-toc')
   if (toc) toc.hidden = true // Avoid stale heading links after replacing the article.
   const canonical = document.querySelector('link[rel="canonical"]')
   if (reader && canonical) canonical.href = liveUrl(post.name, root)
+}
+
+function appendCategories(target, post) {
+  for (const path of post.categoryPaths) {
+    target.append(document.createTextNode(' · '))
+    const a = element('a', 'article-meta__categories', path.join(' / '))
+    a.href = categoryUrl(path, root)
+    target.append(a)
+  }
 }
 
 async function start() {
@@ -62,6 +81,9 @@ async function start() {
   const name = reader ? new URL(location.href).searchParams.get('post') : decodeURIComponent(document.getElementById('blog-publication')?.dataset.source || '')
   const home = location.pathname === root.pathname || location.pathname === `${root.pathname}index.html`
   const archive = location.pathname.startsWith(`${root.pathname}archives/`)
+  const category = location.pathname.startsWith(`${root.pathname}categories/`)
+  const categoryPath = new URL(location.href).searchParams.getAll('category')
+  if (category && !categoryPath.length) categoryPath.push(...location.pathname.slice(`${root.pathname}categories/`.length).split('/').filter((part) => part && part !== 'index.html').map(decodeURIComponent))
   const cache = new Map()
   let syncing = false
   let again = false
@@ -72,7 +94,8 @@ async function start() {
   const status = element('div', '', '正在连接实时更新…')
   status.style.cssText = 'font-size:12px;color:#70838d;text-align:right;padding:6px 12px'
   status.setAttribute('role', 'status')
-  ;(reader || document.getElementById('post') || document.getElementById('recent-posts'))?.append(status)
+  const statusContainer = reader || document.getElementById('post') || document.getElementById('recent-posts') || document.getElementById('category') || document.getElementById('page')
+  statusContainer?.append(status)
 
   async function sync() {
     if (syncing) { again = true; return }
@@ -91,6 +114,13 @@ async function start() {
         posts.push(cache.get(item.name))
       }
       posts.sort((a, b) => b.date.localeCompare(a.date) || b.name.localeCompare(a.name))
+      renderCategories(posts, root, element)
+      let categoryFeed
+      if (category && categoryPath.length) {
+        categoryFeed = document.querySelector('#category .article-sort') || document.querySelector('.category-lists')
+        const heading = document.querySelector('#category .article-sort-title, #page .page-title')
+        if (heading) heading.textContent = `分类 - ${categoryPath.join(' / ')}`
+      }
       const recent = document.querySelector('.card-recent-post .aside-list')
       if (recent) recent.replaceChildren(...posts.slice(0, 5).map((post) => {
         const item = element('div', 'aside-list-item no-cover')
@@ -99,9 +129,9 @@ async function start() {
         item.append(info)
         return item
       }))
-      const feed = home ? document.querySelector('#recent-posts .recent-post-items') : archive ? document.querySelector('#archive .article-sort') : null
+      const feed = categoryFeed || (home ? document.querySelector('#recent-posts .recent-post-items') : archive ? document.querySelector('#archive .article-sort') : null)
       if (feed) {
-        const selected = archive ? posts.filter((post) => {
+        const selected = categoryFeed ? posts.filter((post) => inCategory(post, categoryPath)) : archive ? posts.filter((post) => {
           const parts = location.pathname.slice(`${root.pathname}archives/`.length).split('/').filter(Boolean)
           return !parts.length || post.date.startsWith(parts.join('-'))
         }) : posts
@@ -109,12 +139,14 @@ async function start() {
           const item = element('div', home ? 'recent-post-item' : 'article-sort-item')
           const info = element('div', home ? 'recent-post-info no-cover' : 'article-sort-item-info')
           info.append(link(post, home ? 'article-title' : 'article-sort-item-title'), element('div', 'article-meta-wrap', post.date), element('div', 'content', post.description || post.body.replace(/[#*`>]/g, '').slice(0, 150)))
+          appendCategories(info.querySelector('.article-meta-wrap'), post)
           item.append(info)
           return item
         }))
+        if (!selected.length) feed.append(element('p', '', '这个分类下暂无文章。'))
         document.getElementById('pagination')?.remove()
       }
-      if (!status.isConnected) (reader || document.getElementById('post'))?.append(status)
+      if (!status.isConnected) statusContainer?.append(status)
       status.textContent = connected ? '已连接实时更新' : '已读取最新内容；正在连接实时更新…'
     } catch (error) {
       if (reader && !document.getElementById('blog-publication')) reader.textContent = error.status === 404 ? '没有找到这篇文章，请返回首页。' : '暂时无法读取文章，正在重试…'
