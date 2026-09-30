@@ -789,3 +789,13 @@ body.focus-mode .sidebar { display: none; }
 #document-title { font-size: 15px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .document-filename { color: #899ba3; font-size: 10px; font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .document-name > svg, .document-name > button { flex: none; }
+
+#markdown { white-space: pre-wrap; overflow-wrap: anywhere; word-break: normal; overflow-x: hidden; overflow-y: scroll; }
+.sidebar-actions { display: flex; align-items: center; gap: 2px; }
+.sidebar-actions .icon-button { width: 28px; height: 30px; }
+@media (min-width: 851px) {
+  body.sidebar-collapsed:not(.focus-mode) .workbench { grid-template-columns: 0 minmax(0, 1fr); }
+  body.sidebar-collapsed .sidebar { visibility: hidden; transform: translateX(-100%); overflow: hidden; }
+}
+/* Whole-pixel line boxes keep gutter measurements aligned in long documents. */
+#markdown, #line-numbers { line-height: 26px; }

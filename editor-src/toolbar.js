@@ -1,8 +1,10 @@
 import { applyMarkdownCommand } from './commands.js'
+import { setupLineNumbers } from './line-numbers.js'
 
 export function setupToolbar({ showMessage }) {
   const $ = (id) => document.getElementById(id)
   const input = $('markdown')
+  const updateLineNumbers = setupLineNumbers(input, $('line-numbers'))
   let history = []
   let position = -1
   let restoring = false
@@ -10,8 +12,7 @@ export function setupToolbar({ showMessage }) {
   const snapshot = () => ({ text: input.value, start: input.selectionStart, end: input.selectionEnd })
 
   function update() {
-    $('line-numbers').textContent = Array.from({ length: input.value.split('\n').length }, (_, i) => i + 1).join('\n')
-    $('line-numbers').scrollTop = input.scrollTop
+    updateLineNumbers()
     const before = input.value.slice(0, input.selectionStart).split('\n')
     $('cursor-position').textContent = `第 ${before.length} 行，第 ${before.at(-1).length + 1} 列`
     $('undo').disabled = position <= 0

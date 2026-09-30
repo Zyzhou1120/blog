@@ -6,9 +6,10 @@ import { createPublicationTracker } from './publication.js'
 import { setupToolbar } from './toolbar.js'
 import { liveEndpoint, liveRequest, liveUrl } from './live-api.js'
 import { setupImages } from './images.js'
+import { setupSidebar } from './sidebar.js'
 import { categoryPaths } from './categories.js'
 import {
-  createIcons, SquarePen, KeyRound, ArrowRight, Menu, Search, FilePlus2,
+  createIcons, SquarePen, KeyRound, ArrowRight, Menu, Search, PanelLeft, ChevronLeft, FilePlus2,
   Upload, LogOut, RefreshCw, ExternalLink, FileText, X,
   Minus, Bold, Italic, Strikethrough, Sigma, Link, Image, Code, SquareCode,
   Table2, Quote, List, ListOrdered, ListChecks, Undo2, Redo2, Columns2, Eye, Maximize, CircleHelp,
@@ -21,7 +22,7 @@ const POSTS_PATH = 'source/_posts'
 const API = `https://api.github.com/repos/${OWNER}/${REPO}`
 const SESSION_TOKEN_KEY = 'blog-editor:token'
 const LAST_DOCUMENT_KEY = 'blog-editor:last-document'
-const icons = { SquarePen, KeyRound, ArrowRight, Menu, Search, FilePlus2, Upload, LogOut, RefreshCw, ExternalLink, FileText, X, Minus, Bold, Italic, Strikethrough, Sigma, Link, Image, Code, SquareCode, Table2, Quote, List, ListOrdered, ListChecks, Undo2, Redo2, Columns2, Eye, Maximize, CircleHelp }
+const icons = { SquarePen, KeyRound, ArrowRight, Menu, Search, PanelLeft, ChevronLeft, FilePlus2, Upload, LogOut, RefreshCw, ExternalLink, FileText, X, Minus, Bold, Italic, Strikethrough, Sigma, Link, Image, Code, SquareCode, Table2, Quote, List, ListOrdered, ListChecks, Undo2, Redo2, Columns2, Eye, Maximize, CircleHelp }
 const $ = (id) => document.getElementById(id)
 
 let token = ''
@@ -38,6 +39,7 @@ marked.use(mathExtension())
 marked.setOptions({ breaks: true })
 createIcons({ icons })
 const controls = setupToolbar({ showMessage })
+const sidebarControls = setupSidebar()
 setupImages({
   input: $('markdown'), button: $('upload-image'), getDocument: () => token ? filename : '', showMessage,
   upload: async (content) => {
@@ -341,7 +343,7 @@ function setDocument(name, text, currentSha) {
   controls.reset()
   setStatus(currentSha ? '已保存到仓库' : '本地草稿')
   trackPublication()
-  $('sidebar').classList.remove('open')
+  sidebarControls.closeOnMobile()
 }
 
 async function openPost(post, force = false) {
@@ -600,7 +602,6 @@ $('dismiss-draft').addEventListener('click', () => {
 })
 $('edit-tab').addEventListener('click', () => setView('edit'))
 $('preview-tab').addEventListener('click', () => setView('preview'))
-$('sidebar-toggle').addEventListener('click', () => $('sidebar').classList.toggle('open'))
 $('logout').addEventListener('click', () => {
   storeDraft()
   token = ''
