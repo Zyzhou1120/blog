@@ -6,8 +6,9 @@ import { createPublicationTracker } from './publication.js'
 import { setupToolbar } from './toolbar.js'
 import { liveEndpoint, liveRequest, liveUrl } from './live-api.js'
 import { setupImages } from './images.js'
+import { categoryPaths } from './categories.js'
 import {
-  createIcons, SquarePen, KeyRound, ArrowRight, Menu, FilePlus2,
+  createIcons, SquarePen, KeyRound, ArrowRight, Menu, Search, FilePlus2,
   Upload, LogOut, RefreshCw, ExternalLink, FileText, X,
   Minus, Bold, Italic, Strikethrough, Sigma, Link, Image, Code, SquareCode,
   Table2, Quote, List, ListOrdered, ListChecks, Undo2, Redo2, Columns2, Eye, Maximize, CircleHelp,
@@ -20,11 +21,12 @@ const POSTS_PATH = 'source/_posts'
 const API = `https://api.github.com/repos/${OWNER}/${REPO}`
 const SESSION_TOKEN_KEY = 'blog-editor:token'
 const LAST_DOCUMENT_KEY = 'blog-editor:last-document'
-const icons = { SquarePen, KeyRound, ArrowRight, Menu, FilePlus2, Upload, LogOut, RefreshCw, ExternalLink, FileText, X, Minus, Bold, Italic, Strikethrough, Sigma, Link, Image, Code, SquareCode, Table2, Quote, List, ListOrdered, ListChecks, Undo2, Redo2, Columns2, Eye, Maximize, CircleHelp }
+const icons = { SquarePen, KeyRound, ArrowRight, Menu, Search, FilePlus2, Upload, LogOut, RefreshCw, ExternalLink, FileText, X, Minus, Bold, Italic, Strikethrough, Sigma, Link, Image, Code, SquareCode, Table2, Quote, List, ListOrdered, ListChecks, Undo2, Redo2, Columns2, Eye, Maximize, CircleHelp }
 const $ = (id) => document.getElementById(id)
 
 let token = ''
 let posts = []
+const postDetails = new Map()
 let filename = ''
 let sha = null
 let baseText = ''
@@ -213,33 +215,104 @@ function renderPreview() {
   })
   $('word-count').textContent = `${body.replace(/\s/g, '').length} 字`
   $('dirty-dot').hidden = !unsaved()
+  if (filename && !unsaved()) postDetails.set(filename, { sha, meta: describePost(markdown, filename) })
   controls.update()
+  renderPosts()
+}
+
+function describePost(text, name) {
+  const match = text?.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/)
+  try {
+    const meta = match ? parseYaml(match[1], { maxAliasCount: 20 }) || {} : {}
+    return { title: String(meta.title || name.replace(/\.md$/i, '')), category: categoryPaths(meta.categories).map((path) => path.join(' / ')).join('、') || '未分类' }
+  } catch { return postDetails.get(name)?.meta || { title: name.replace(/\.md$/i, ''), category: '未分类' } }
 }
 
 function renderPosts() {
   const list = $('post-list')
+  const scrollTop = list.scrollTop
   list.replaceChildren()
-  if (!posts.length) {
+  const entries = posts.map((post) => ({ ...post }))
+  for (const key of Object.keys(localStorage)) {
+    if (!key.startsWith('blog-editor:draft:')) continue
+    const name = key.slice('blog-editor:draft:'.length)
+    if (!entries.some((post) => post.name === name)) entries.push({ name, sha: null, local: true })
+  }
+  if (filename && !entries.some((post) => post.name === filename)) entries.unshift({ name: filename, sha })
+  const query = $('post-search').value.trim().toLocaleLowerCase()
+  const groups = new Map()
+  for (const post of entries) {
+    const active = post.name === filename
+    let draft
+    try { draft = JSON.parse(localStorage.getItem(draftKey(post.name)) || 'null') } catch { /* Ignore a damaged local draft. */ }
+    const meta = active ? describePost($('markdown').value, post.name) : draft ? describePost(draft.text, post.name) : postDetails.get(post.name)?.meta || describePost('', post.name)
+    if (active) {
+      $('document-title').textContent = meta.title
+      $('document-title').title = meta.title
+      $('filename').textContent = post.name
+      $('filename').title = `source/_posts/${post.name}`
+    }
+    if (query && !`${meta.title} ${meta.category} ${post.name}`.toLocaleLowerCase().includes(query)) continue
+    const group = groups.get(meta.category) || []
+    group.push({ ...post, ...meta, active, draft: active ? unsaved() || !sha : Boolean(draft) })
+    groups.set(meta.category, group)
+  }
+  $('post-count').textContent = String(entries.length)
+  for (const [category, items] of [...groups].sort(([a], [b]) => a.localeCompare(b, 'zh-CN'))) {
+    const section = document.createElement('section')
+    section.className = 'post-group'
+    const heading = document.createElement('h2')
+    heading.className = 'post-group-title'
+    heading.textContent = category
+    const count = document.createElement('span')
+    count.textContent = String(items.length)
+    heading.append(count)
+    section.append(heading)
+    for (const post of items) {
+      const button = document.createElement('button')
+      button.type = 'button'
+      button.className = `post-item${post.active ? ' selected' : ''}`
+      button.setAttribute('aria-current', String(post.active))
+      button.title = `${post.title}\n${post.name}`
+      const title = document.createElement('span')
+      title.className = 'post-item-title'
+      title.textContent = post.title
+      const detail = document.createElement('span')
+      detail.className = 'post-item-detail'
+      const name = document.createElement('small')
+      name.textContent = post.name
+      detail.append(name)
+      if (post.draft) {
+        const badge = document.createElement('span')
+        badge.className = 'post-draft-badge'
+        badge.textContent = post.sha ? '未提交' : '草稿'
+        detail.append(badge)
+      }
+      button.append(title, detail)
+      button.addEventListener('click', () => openPost(post))
+      section.append(button)
+    }
+    list.append(section)
+  }
+  if (!groups.size) {
     const empty = document.createElement('p')
     empty.className = 'list-empty'
-    empty.textContent = '还没有文章'
+    empty.textContent = query ? '没有匹配的文章，试试其他关键词' : '还没有文章，点击「新文章」开始写作'
     list.append(empty)
-    return
   }
-  for (const post of posts) {
-    const button = document.createElement('button')
-    button.type = 'button'
-    button.className = `post-item${post.name === filename ? ' selected' : ''}`
-    button.setAttribute('role', 'option')
-    button.setAttribute('aria-selected', String(post.name === filename))
-    const title = document.createElement('span')
-    title.className = 'post-item-title'
-    title.textContent = post.name.replace(/\.md$/i, '')
-    const extension = document.createElement('small')
-    extension.textContent = 'Markdown'
-    button.append(title, extension)
-    button.addEventListener('click', () => openPost(post))
-    list.append(button)
+  list.scrollTop = scrollTop
+}
+
+async function loadPostDetails() {
+  const pending = posts.filter((post) => post.name !== filename && postDetails.get(post.name)?.sha !== post.sha)
+  // Limit parallel reads for larger libraries and keep a failed read retryable.
+  for (let i = 0; i < pending.length; i += 4) {
+    await Promise.allSettled(pending.slice(i, i + 4).map(async (post) => {
+      const result = liveEndpoint ? await liveRequest(`/posts/${encodeURIComponent(post.name)}`) : await request(`/contents/${encodedPath(`${POSTS_PATH}/${post.name}`)}?ref=${BRANCH}`)
+      const text = liveEndpoint ? result.text : decodeBase64(result.content)
+      postDetails.set(post.name, { sha: result.sha, meta: describePost(text, post.name) })
+    }))
+    renderPosts()
   }
 }
 
@@ -248,12 +321,14 @@ async function loadPosts() {
   posts = result.filter((item) => (liveEndpoint || item.type === 'file') && item.name.endsWith('.md'))
     .sort((a, b) => b.name.localeCompare(a.name, 'zh-CN'))
   renderPosts()
+  if (filename) void loadPostDetails()
 }
 
 function setDocument(name, text, currentSha) {
   filename = name
   sha = currentSha
   baseText = text
+  postDetails.set(name, { sha: currentSha, meta: describePost(text, name) })
   sessionStorage.setItem(LAST_DOCUMENT_KEY, name)
   $('filename').textContent = name
   $('markdown').value = text
@@ -274,6 +349,15 @@ async function openPost(post, force = false) {
   storeDraft()
   setStatus('正在读取...')
   try {
+    if (post.local) {
+      const draft = JSON.parse(localStorage.getItem(draftKey(post.name)))
+      setDocument(post.name, '', null)
+      $('markdown').value = draft.text
+      renderPreview()
+      controls.reset()
+      setStatus('本地草稿已恢复')
+      return
+    }
     const result = liveEndpoint ? await liveRequest(`/posts/${encodeURIComponent(post.name)}`) : await request(`/contents/${encodedPath(`${POSTS_PATH}/${post.name}`)}?ref=${BRANCH}`)
     setDocument(post.name, liveEndpoint ? result.text : decodeBase64(result.content), result.sha)
     const saved = localStorage.getItem(draftKey(post.name))
@@ -454,6 +538,7 @@ async function connect(nextToken) {
     } else if (posts[0]) {
       await openPost(posts[0])
     }
+    void loadPostDetails()
   } catch (error) {
     token = ''
     sessionStorage.removeItem(SESSION_TOKEN_KEY)
@@ -475,6 +560,8 @@ $('markdown').addEventListener('input', () => {
   clearTimeout(saveTimer)
   saveTimer = setTimeout(storeDraft, 350)
 })
+
+$('post-search').addEventListener('input', renderPosts)
 
 $('new-post').addEventListener('click', () => $('new-dialog').showModal())
 $('new-form').addEventListener('submit', (event) => {

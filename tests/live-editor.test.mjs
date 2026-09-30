@@ -139,3 +139,35 @@ test('a failed live save never reports published and preserves the editable draf
     assert.match(f.window.localStorage.getItem('blog-editor:draft:welcome.md'), /4444/)
   } finally { f.close() }
 })
+
+test('library uses article titles, searches metadata, and opens a local draft without a remote file', async () => {
+  const f = await fixture()
+  try {
+    const doc = f.window.document
+    assert.equal(doc.getElementById('document-title').textContent, '欢迎')
+    assert.equal(doc.querySelector('.post-item-title').textContent, '欢迎')
+    assert.equal(doc.querySelector('.post-item small').textContent, 'welcome.md')
+    f.window.localStorage.setItem('blog-editor:draft:note.md', JSON.stringify({ sha: null, text: '---\ntitle: 我的笔记\ncategories: 学习\n---\n草稿正文' }))
+    const input = doc.getElementById('markdown')
+    input.value = '---\ntitle: 深度学习引入\ncategories: 深度学习\n---\n正文'
+    input.dispatchEvent(new f.window.Event('input'))
+    assert.equal(doc.getElementById('document-title').textContent, '深度学习引入')
+    assert.equal(doc.getElementById('post-count').textContent, '2')
+    assert.equal(doc.querySelector('.post-item.selected .post-draft-badge').textContent, '未提交')
+    const search = doc.getElementById('post-search')
+    search.value = '我的笔记'
+    search.dispatchEvent(new f.window.Event('input'))
+    assert.equal(doc.querySelectorAll('.post-item').length, 1)
+    doc.querySelector('.post-item').click()
+    await until(() => doc.getElementById('document-title').textContent === '我的笔记')
+    assert.equal(doc.getElementById('filename').textContent, 'note.md')
+    assert.match(input.value, /草稿正文/)
+    assert.equal(f.requests.some((r) => r.url.endsWith('/posts/note.md')), false)
+    search.value = 'does-not-exist'
+    search.dispatchEvent(new f.window.Event('input'))
+    assert.match(doc.getElementById('post-list').textContent, /没有匹配/)
+    search.value = '学习'
+    search.dispatchEvent(new f.window.Event('input'))
+    assert.equal(doc.querySelectorAll('.post-item').length, 2)
+  } finally { f.close() }
+})

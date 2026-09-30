@@ -764,3 +764,28 @@ body.focus-mode .sidebar { display: none; }
     padding: 0 18px;
   }
 }
+
+/* Article library: human titles first, source filenames as supporting detail. */
+.sidebar-top { height: 62px; flex: none; }
+.sidebar-title { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.post-count { background: #e6edef; color: #6a7d85; font-size: 11px; padding: 2px 7px; border-radius: 12px; }
+.post-search { margin: 0 14px 14px; position: relative; flex: none; }
+.post-search svg { width: 15px; height: 15px; position: absolute; left: 11px; top: 11px; color: #8b9aa1; pointer-events: none; }
+.post-search input { width: 100%; height: 37px; padding: 0 10px 0 32px; border: 1px solid #dce5e8; border-radius: 8px; background: #fff; font-size: 11px; color: #34454c; outline: none; }
+.post-search input:focus { border-color: #348579; box-shadow: 0 0 0 2px #dfefea; }
+.post-list { padding: 0 10px 20px; }
+.post-group { margin-bottom: 18px; }
+.post-group-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 5px 10px; margin: 0 0 7px; font-size: 11px; font-weight: 600; color: #7a8d94; overflow-wrap: anywhere; }
+.post-group-title span { font-weight: 400; flex: none; }
+.post-item { padding: 13px 12px; gap: 8px; border-radius: 8px; border: 1px solid transparent; margin-bottom: 4px; }
+.post-item.selected { border-color: #c5e0d8; background: #e3f0eb; box-shadow: inset 3px 0 #287c6d; }
+.post-item:focus-visible { outline: 2px solid #287c6d; outline-offset: 1px; }
+.post-item-title { font-size: 14px; }
+.post-item-detail { display: flex; align-items: center; gap: 8px; width: 100%; }
+.post-item-detail small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #82959c; font-size: 10px; }
+.post-draft-badge { margin-left: auto; flex: none; color: #987134; font-size: 10px; }
+.document-bar { height: 65px; }
+.document-label { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+#document-title { font-size: 15px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.document-filename { color: #899ba3; font-size: 10px; font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.document-name > svg, .document-name > button { flex: none; }
