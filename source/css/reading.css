@@ -1,0 +1,67 @@
+/* Public article and category layouts share the blog's existing card style. */
+.reader-heading {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 48px 15px 28px;
+}
+.reader-heading .post-title {
+  margin: 0 0 12px;
+  color: var(--text-highlight-color, #24313f);
+  font-size: clamp(28px, 3vw, 38px);
+  font-weight: 500;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.reader-meta {
+  color: var(--font-color, #858585);
+  font-size: 14px;
+  line-height: 2;
+}
+.reader-meta a { color: inherit; }
+.reader-meta a:hover { color: #49b1f5; }
+.layout.reader-layout { padding-top: 0; }
+#page.reader-page { padding: 40px; }
+#page.reader-page #article-container { font-size: 16px; line-height: 2; }
+#live-reader > :first-child { margin-top: 0; }
+#live-reader .katex-display { overflow-x: auto; overflow-y: hidden; padding: 4px 0; }
+#page.category-page, #category.category-page {
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.category-page > .page-title, .category-page > .article-sort-title {
+  margin: 0 0 24px;
+  padding: 0 4px;
+  font-size: 28px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+.category-page > .article-sort-title::before,
+.category-page > .article-sort-title::after { display: none; }
+.category-cards { margin: 0; padding: 0; border: 0; }
+.category-cards .recent-post-item {
+  display: flex;
+  align-items: center;
+  min-height: 230px;
+  margin-bottom: 20px;
+  border-radius: 12px;
+  background: var(--card-bg, #fff);
+  box-shadow: var(--card-box-shadow, 0 3px 8px 6px rgba(7, 17, 27, .05));
+  transition: box-shadow .2s;
+}
+.category-cards .recent-post-item:hover { box-shadow: var(--card-hover-box-shadow, 0 3px 8px 6px rgba(7, 17, 27, .09)); }
+.category-cards .recent-post-info { width: 100%; padding: 40px; }
+.category-cards h2 { margin: 0 0 20px; font-size: 26px; font-weight: 400; line-height: 1.5; }
+.category-cards .article-title { color: var(--text-highlight-color, #24313f); overflow-wrap: anywhere; }
+.category-cards .article-title:hover, .category-cards .category-read-more:hover { color: #49b1f5; }
+.category-cards .category-read-more { font-size: 14px; color: var(--font-color, #858585); }
+@media (max-width: 768px) {
+  .reader-heading { padding: 32px 20px 24px; }
+  #page.reader-page { padding: 24px 20px; }
+  .category-page > .page-title, .category-page > .article-sort-title { font-size: 24px; margin-bottom: 20px; }
+  .category-cards .recent-post-item { min-height: 180px; }
+  .category-cards .recent-post-info { padding: 28px 24px; }
+  .category-cards h2 { font-size: 23px; }
+}

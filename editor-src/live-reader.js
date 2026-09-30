@@ -40,20 +40,16 @@ function renderPost(post) {
   marker.dataset.source = encodeURIComponent(post.name)
   marker.dataset.sha = post.sha
   target.append(marker)
-  const title = document.querySelector('.post-title') || document.querySelector('#page .page-title')
-  if (title) title.textContent = post.title
-  else if (reader) target.prepend(element('h1', '', post.title))
+  if (reader) renderReaderHeading(post)
+  else {
+    const title = document.querySelector('.post-title')
+    if (title) title.textContent = post.title
+  }
   document.title = `${post.title} | 我的博客`
   const meta = document.querySelector('#post-meta .meta-firstline')
   if (meta) {
     meta.textContent = `发表于 ${post.date} · 更新于 ${new Date(post.updated).toLocaleString('zh-CN')}`
     appendCategories(meta, post)
-  } else if (reader) {
-    const info = element('div', 'article-meta-wrap', post.date)
-    appendCategories(info, post)
-    const heading = target.querySelector('h1')
-    if (heading) heading.after(info)
-    else target.prepend(info)
   }
   const tags = document.querySelector('.tag_share')
   if (tags) tags.hidden = true // Static tag links can refer to metadata from an older build.
@@ -61,6 +57,45 @@ function renderPost(post) {
   if (toc) toc.hidden = true // Avoid stale heading links after replacing the article.
   const canonical = document.querySelector('link[rel="canonical"]')
   if (reader && canonical) canonical.href = liveUrl(post.name, root)
+}
+
+
+function renderReaderHeading(post) {
+  let header = document.getElementById('reader-heading')
+  if (!header) {
+    header = element('header', 'reader-heading')
+    header.id = 'reader-heading'
+    const layout = reader.closest('.layout')
+    const page = reader.closest('#page')
+    page?.classList.add('reader-page')
+    page?.querySelector('.page-title')?.remove()
+    if (layout) {
+      layout.classList.add('reader-layout')
+      layout.before(header)
+    } else reader.before(header)
+  }
+  const title = element('h1', 'post-title', post.title)
+  const meta = element('div', 'reader-meta')
+  if (post.date) {
+    const date = element('time', '', `发表于 ${post.date}`)
+    date.dateTime = post.date
+    meta.append(date)
+  }
+  appendCategories(meta, post)
+  header.replaceChildren(title, meta)
+}
+
+function categoryCard(post) {
+  const card = element('article', 'recent-post-item')
+  const info = element('div', 'recent-post-info no-cover')
+  const title = element('h2')
+  title.append(link(post, 'article-title'))
+  const read = link(post, 'category-read-more')
+  read.textContent = '阅读全文 →'
+  read.setAttribute('aria-label', `阅读：${post.title}`)
+  info.append(title, read)
+  card.append(info)
+  return card
 }
 
 function appendCategories(target, post) {
@@ -87,16 +122,9 @@ async function start() {
   const cache = new Map()
   let syncing = false
   let again = false
-  let connected = false
   let socket
   let reconnect
   let backoff = 1000
-  const status = element('div', '', '正在连接实时更新…')
-  status.style.cssText = 'font-size:12px;color:#70838d;text-align:right;padding:6px 12px'
-  status.setAttribute('role', 'status')
-  const statusContainer = reader || document.getElementById('post') || document.getElementById('recent-posts') || document.getElementById('category') || document.getElementById('page')
-  statusContainer?.append(status)
-
   async function sync() {
     if (syncing) { again = true; return }
     syncing = true
@@ -117,9 +145,14 @@ async function start() {
       renderCategories(posts, root, element)
       let categoryFeed
       if (category && categoryPath.length) {
-        categoryFeed = document.querySelector('#category .article-sort') || document.querySelector('.category-lists')
+        categoryFeed = document.querySelector('#category .article-sort, #category .category-cards') || document.querySelector('.category-lists')
         const heading = document.querySelector('#category .article-sort-title, #page .page-title')
-        if (heading) heading.textContent = `分类 - ${categoryPath.join(' / ')}`
+        if (heading) heading.textContent = categoryPath.join(' / ')
+        const container = categoryFeed?.closest('#category, #page')
+        container?.classList.add('category-page')
+        categoryFeed?.classList.remove('article-sort')
+        categoryFeed?.classList.add('category-cards')
+        document.title = `${categoryPath.join(' / ')} | 我的博客`
       }
       const recent = document.querySelector('.card-recent-post .aside-list')
       if (recent) recent.replaceChildren(...posts.slice(0, 5).map((post) => {
@@ -136,6 +169,7 @@ async function start() {
           return !parts.length || post.date.startsWith(parts.join('-'))
         }) : posts
         feed.replaceChildren(...selected.map((post) => {
+          if (categoryFeed) return categoryCard(post)
           const item = element('div', home ? 'recent-post-item' : 'article-sort-item')
           const info = element('div', home ? 'recent-post-info no-cover' : 'article-sort-item-info')
           info.append(link(post, home ? 'article-title' : 'article-sort-item-title'), element('div', 'article-meta-wrap', post.date), element('div', 'content', post.description || post.body.replace(/[#*`>]/g, '').slice(0, 150)))
@@ -146,11 +180,8 @@ async function start() {
         if (!selected.length) feed.append(element('p', '', '这个分类下暂无文章。'))
         document.getElementById('pagination')?.remove()
       }
-      if (!status.isConnected) statusContainer?.append(status)
-      status.textContent = connected ? '已连接实时更新' : '已读取最新内容；正在连接实时更新…'
     } catch (error) {
       if (reader && !document.getElementById('blog-publication')) reader.textContent = error.status === 404 ? '没有找到这篇文章，请返回首页。' : '暂时无法读取文章，正在重试…'
-      status.textContent = '实时连接暂时中断，保留当前内容，稍后自动重试'
     } finally {
       syncing = false
       if (again) { again = false; void sync() }
@@ -161,11 +192,9 @@ async function start() {
     const url = new URL('/events', liveEndpoint)
     url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
     socket = new WebSocket(url)
-    socket.onopen = () => { connected = true; backoff = 1000; void sync() }
+    socket.onopen = () => { backoff = 1000; void sync() }
     socket.onmessage = (event) => { if (event.data !== 'pong') void sync() }
     socket.onclose = () => {
-      connected = false
-      status.textContent = '实时连接中断，正在重连…'
       clearTimeout(reconnect)
       reconnect = setTimeout(connect, backoff)
       backoff = Math.min(backoff * 2, 30000)

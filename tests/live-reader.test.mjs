@@ -12,7 +12,7 @@ const until = async (condition) => {
 
 function fixture({ generic = false, home = false, categories = false, categoryQuery = '' } = {}) {
   let post = { name: 'welcome.md', sha: 'new-sha', text: '---\ntitle: 新标题\ndate: 2026-09-29\n---\n2222\n3333\n4444', updated: '2026-09-29T15:00:00Z' }
-  const html = home ? '<div id="recent-posts"><div class="recent-post-items"></div></div>' : generic ? '<div id="live-reader">正在读取</div>' : '<div id="post"><h1 class="post-title">旧标题</h1><div id="article-container">2222<span id="blog-publication" data-source="welcome.md" data-sha="old-sha"></span></div></div>'
+  const html = home ? '<div id="recent-posts"><div class="recent-post-items"></div></div>' : generic ? '<main class="layout"><div id="page"><div class="page-title">阅读文章</div><div id="article-container"><div id="live-reader">正在读取</div></div></div></main>' : '<div id="post"><h1 class="post-title">旧标题</h1><div id="article-container">2222<span id="blog-publication" data-source="welcome.md" data-sha="old-sha"></span></div></div>'
   const categoryHtml = '<div class="card-categories"><ul id="aside-cat-list"><li>随笔</li></ul></div>' + (categories ? '<div id="page"><div class="page-title">分类</div><div class="category-lists">随笔</div></div>' : '')
   const dom = new JSDOM(html + categoryHtml, { url: `https://zyzhou1120.github.io/blog/${categories ? 'categories/' + categoryQuery : home ? '' : generic ? 'read/?post=welcome.md' : '2026/09/29/welcome/'}`, runScripts: 'outside-only', pretendToBeVisual: true })
   const { window } = dom
@@ -64,13 +64,16 @@ test('a category lists moved articles immediately and removes them when moved aw
   try {
     await until(() => page.window.document.querySelector('.category-lists').textContent.includes('暂无文章'))
     page.update('---\ntitle: 深度学习引入\ncategories:\n  - 机器学习\n  - 深度学习\n---\n正文')
-    await until(() => page.window.document.querySelector('.category-lists .article-sort-item-title'))
-    assert.equal(page.window.document.querySelector('.category-lists .article-sort-item-title').textContent, '深度学习引入')
+    await until(() => page.window.document.querySelector('.category-lists .article-title'))
+    assert.equal(page.window.document.querySelector('.category-lists .article-title').textContent, '深度学习引入')
+    assert.ok(page.window.document.querySelector('.category-cards .recent-post-item'))
+    assert.equal(page.window.document.querySelector('.category-cards .article-meta-wrap, .category-cards .content'), null)
+    assert.equal(page.window.document.body.textContent.includes('已连接实时更新'), false)
     assert.equal(page.window.document.querySelector('#aside-cat-list ul .card-category-list-name').textContent, '深度学习')
     // A new publication must have a new SHA, as the production backend does.
     page.update('---\ntitle: 深度学习引入\ncategories: 随笔\n---\n正文')
     await until(() => page.window.document.querySelector('.category-lists').textContent.includes('暂无文章'))
-    assert.equal(page.window.document.querySelector('.category-lists .article-sort-item-title'), null)
+    assert.equal(page.window.document.querySelector('.category-lists .article-title'), null)
   } finally { page.close() }
 })
 
@@ -92,7 +95,11 @@ test('new posts can be read and listed before a static page has been built', asy
   try {
     await until(() => page.window.document.getElementById('live-reader').textContent.includes('4444'))
     await until(() => home.window.document.querySelector('.article-title'))
-    assert.equal(page.window.document.querySelector('#live-reader h1').textContent, '新标题')
+    assert.equal(page.window.document.querySelector('#reader-heading h1').textContent, '新标题')
+    assert.equal(page.window.document.querySelector('.layout').previousElementSibling.id, 'reader-heading')
+    assert.equal(page.window.document.querySelector('#page .page-title'), null)
+    assert.equal(page.window.document.querySelector('#live-reader h1'), null)
+    assert.equal(page.window.document.body.textContent.includes('已连接实时更新'), false)
     assert.equal(home.window.document.querySelector('.article-title').href, 'https://zyzhou1120.github.io/blog/read/?post=welcome.md')
   } finally { page.close(); home.close() }
 })
@@ -110,7 +117,7 @@ title: 公式检查
 
 $$f(x) = \max(0, x) = \begin{cases} 0 & \text{if } x < 0 \\ x & \text{if } x \ge 0 \end{cases}$$
 `)
-    await until(() => page.window.document.querySelector('#live-reader h1')?.textContent === '公式检查')
+    await until(() => page.window.document.querySelector('#reader-heading h1')?.textContent === '公式检查')
     const root = page.window.document.getElementById('live-reader')
     assert.equal(root.querySelectorAll('.katex').length, 5)
     assert.equal(root.querySelectorAll('.katex-error').length, 0)
