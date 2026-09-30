@@ -44,24 +44,27 @@
 .post-cards .blog-post-card {
   display: flex;
   align-items: center;
-  min-height: 230px;
+  height: 235px;
   margin-bottom: 20px;
-  border-radius: 12px;
+  border-radius: 8px;
   background: var(--card-bg, #fff);
   box-shadow: var(--card-box-shadow, 0 3px 8px 6px rgba(7, 17, 27, .05));
   transition: box-shadow .2s;
 }
 .post-cards .blog-post-card:hover { box-shadow: var(--card-hover-box-shadow, 0 3px 8px 6px rgba(7, 17, 27, .09)); }
-.post-cards .blog-post-info { width: 100%; padding: 40px; }
-.post-cards .blog-post-title { margin: 0 0 20px; font-size: 26px; font-weight: 400; line-height: 1.5; }
+.post-cards .blog-post-info { width: 100%; min-width: 0; padding: 0 40px; }
+.post-cards .blog-post-title { margin: 0; font-size: 21.7px; font-weight: 400; line-height: 1.4; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 .post-cards .article-title { font-size: inherit; line-height: inherit; font-weight: inherit; color: var(--text-highlight-color, #24313f); overflow-wrap: anywhere; }
-.post-cards .article-title:hover, .post-cards .blog-read-more:hover { color: #49b1f5; }
-.post-cards .blog-read-more { font-size: 14px; color: var(--font-color, #858585); }
+.post-cards .article-title:hover { color: #49b1f5; }
+.post-cards .blog-post-dates { display: flex; flex-wrap: wrap; gap: 0 6px; margin: 6px 0; color: #858585; font-size: 12.6px; line-height: 2; }
+.post-cards .blog-post-date { white-space: nowrap; }
+.post-cards .blog-post-date i { margin-right: 5px; }
+.post-cards .blog-post-excerpt { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin: 0; font-size: 14px; line-height: 2; color: var(--font-color, #4c4948); overflow-wrap: anywhere; }
 @media (max-width: 768px) {
   .reader-heading { padding: 32px 20px 24px; }
   #page.reader-page { padding: 24px 20px; }
   .category-page > .page-title, .category-page > .article-sort-title { font-size: 24px; margin-bottom: 20px; }
-  .post-cards .blog-post-card { min-height: 180px; }
+  .post-cards .blog-post-card { height: auto; min-height: 210px; }
   .post-cards .blog-post-info { padding: 28px 24px; }
-  .post-cards .blog-post-title { font-size: 23px; }
+  .post-cards .blog-post-title { font-size: 21px; }
 }

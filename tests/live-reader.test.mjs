@@ -77,7 +77,7 @@ test('a category lists moved articles immediately and removes them when moved aw
   } finally { page.close() }
 })
 
-test('homepage cards stay minimal while the reader retains its category links', async () => {
+test('homepage cards show article openings while the reader retains its category links', async () => {
   const pages = [fixture({ home: true }), fixture({ generic: true })]
   try {
     await until(() => pages[0].window.document.querySelector('.article-title') && pages[1].window.document.querySelector('#blog-publication'))
@@ -85,7 +85,8 @@ test('homepage cards stay minimal while the reader retains its category links', 
     await until(() => pages[1].window.document.querySelector('.article-meta__categories'))
     assert.equal(pages[1].window.document.querySelector('.article-meta__categories').textContent, '深度学习')
     assert.equal(pages[0].window.document.querySelector('.blog-post-card .article-meta__categories'), null)
-    assert.ok(pages[0].window.document.querySelector('.blog-post-card .blog-read-more'))
+    assert.equal(pages[0].window.document.querySelector('.blog-post-card .blog-post-excerpt').textContent, '正文')
+    assert.match(pages[0].window.document.querySelector('.blog-post-dates').textContent, /更新于 2026-09-29/)
   } finally { pages.forEach((page) => page.close()) }
 })
 

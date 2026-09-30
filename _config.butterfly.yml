@@ -36,3 +36,9 @@ busuanzi:
 CDN:
   option:
       busuanzi: /js/article.js?v=3
+
+post_meta:
+  page:
+    date_type: both
+    categories: false
+    tags: false

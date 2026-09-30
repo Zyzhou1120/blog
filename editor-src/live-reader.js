@@ -1,6 +1,7 @@
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
 import { parse } from 'yaml'
+import excerpt from '../shared/excerpt.cjs'
 import mathExtension from '../shared/math.cjs'
 import { liveEndpoint, liveRequest, liveUrl } from './live-api.js'
 import { categoryPaths, categoryUrl, inCategory, renderCategories } from './categories.js'
@@ -15,7 +16,7 @@ function content(post) {
   const match = post.text.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/)
   let meta = {}
   try { meta = match ? parse(match[1], { maxAliasCount: 20 }) || {} : {} } catch { /* Still display a readable article. */ }
-  return { ...post, title: String(meta.title || post.name.replace(/\.md$/, '')), date: String(meta.date || '').slice(0, 10), description: String(meta.description || ''), categoryPaths: categoryPaths(meta.categories), body: match ? post.text.slice(match[0].length) : post.text }
+  return { ...post, title: String(meta.title || post.name.replace(/\.md$/, '')), date: String(meta.date || '').slice(0, 10), description: String(meta.description || ''), updatedDate: String(meta.updated || post.updated || meta.date || ''), categoryPaths: categoryPaths(meta.categories), body: match ? post.text.slice(match[0].length) : post.text }
 }
 function element(tag, className, text) {
   const node = document.createElement(tag)
@@ -90,10 +91,27 @@ function articleCard(post) {
   const info = element('div', 'blog-post-info')
   const title = element('h2', 'blog-post-title')
   title.append(link(post, 'article-title'))
-  const read = link(post, 'blog-read-more')
-  read.textContent = '阅读全文 →'
-  read.setAttribute('aria-label', `阅读：${post.title}`)
-  info.append(title, read)
+  const dates = element('div', 'blog-post-dates')
+  const addDate = (label, value, icon) => {
+    if (!value) return
+    const group = element('span', 'blog-post-date')
+    const glyph = element('i', icon)
+    glyph.setAttribute('aria-hidden', 'true')
+    const time = element('time', '', value)
+    time.dateTime = value
+    group.append(glyph, document.createTextNode(label + ' '), time)
+    if (dates.childNodes.length) dates.append(element('span', 'blog-date-separator', '|'))
+    dates.append(group)
+  }
+  addDate('发表于', post.date, 'far fa-calendar-alt')
+  let updated = post.updatedDate || post.updated || post.date
+  if (updated && !/^\d{4}-\d{2}-\d{2}$/.test(updated)) {
+    const date = new Date(updated)
+    updated = Number.isNaN(date.getTime()) ? '' : new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date)
+  }
+  addDate('更新于', updated, 'fas fa-history')
+  const summary = element('p', 'blog-post-excerpt', post.excerpt ?? excerpt(post.body))
+  info.append(title, dates, summary)
   card.append(info)
   return card
 }
@@ -112,7 +130,11 @@ async function start() {
   // Normalize the built homepage immediately, even if the live service is unavailable.
   const homeFeed = document.querySelector('#recent-posts .recent-post-items')
   if (homeFeed) {
-    const cards = [...homeFeed.querySelectorAll('.article-title')].map((a) => articleCard({ title: a.textContent, href: a.href }))
+    const cards = [...homeFeed.querySelectorAll('.article-title')].map((a) => {
+      const info = a.closest('.recent-post-info')
+      const dates = info?.querySelectorAll('time') || []
+      return articleCard({ title: a.textContent, href: a.href, date: dates[0]?.textContent, updatedDate: dates[1]?.textContent, excerpt: info?.querySelector('.content')?.textContent || '' })
+    })
     homeFeed.classList.add('post-cards')
     homeFeed.replaceChildren(...cards)
   }
