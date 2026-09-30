@@ -250,3 +250,72 @@ test('typing another title and body during a rename stays in the local draft', a
     assert.equal(doc.getElementById('dirty-dot').hidden, false)
   } finally { finish(); f.close() }
 })
+
+test('opening the image chooser keeps the editing layout fullscreen and restores the screen on return', async () => {
+  const f = await fixture()
+  try {
+    const doc = f.window.document
+    const event = name => doc.dispatchEvent(new f.window.Event(name))
+    doc.documentElement.requestFullscreen = async () => { doc.fullscreenElement = doc.documentElement; event('fullscreenchange') }
+    doc.exitFullscreen = async () => { doc.fullscreenElement = null; event('fullscreenchange') }
+    doc.getElementById('focus-mode').click()
+    await until(() => doc.fullscreenElement)
+    const picker = doc.getElementById('image-file')
+    picker.click = () => { doc.fullscreenElement = null; event('fullscreenchange') }
+    doc.getElementById('upload-image').click()
+    assert.equal(doc.body.classList.contains('focus-mode'), true, 'file chooser must not collapse the editor')
+    picker.dispatchEvent(new f.window.Event('cancel'))
+    await until(() => doc.fullscreenElement)
+    assert.equal(doc.body.classList.contains('focus-mode'), true)
+  } finally { f.close() }
+})
+
+test('a browser that refuses automatic fullscreen recovery keeps the layout and offers a fresh click', async () => {
+  const f = await fixture()
+  try {
+    const doc = f.window.document
+    let blocked = false
+    doc.documentElement.requestFullscreen = async () => {
+      if (blocked) throw new Error('User gesture required')
+      doc.fullscreenElement = doc.documentElement
+      doc.dispatchEvent(new f.window.Event('fullscreenchange'))
+    }
+    const button = doc.getElementById('focus-mode')
+    button.click()
+    await until(() => doc.fullscreenElement)
+    const picker = doc.getElementById('image-file')
+    picker.click = () => {
+      blocked = true
+      doc.fullscreenElement = null
+      doc.dispatchEvent(new f.window.Event('fullscreenchange'))
+    }
+    doc.getElementById('upload-image').click()
+    const file = new f.window.File([new Uint8Array([137, 80, 78, 71])], '截图.png', { type: 'image/png' })
+    Object.defineProperty(picker, 'files', { value: [file] })
+    picker.dispatchEvent(new f.window.Event('change'))
+    await until(() => doc.querySelector('#preview img'))
+    assert.equal(doc.body.classList.contains('focus-mode'), true)
+    assert.equal(button.getAttribute('aria-label'), '恢复屏幕全屏')
+    blocked = false
+    button.click()
+    await until(() => doc.fullscreenElement)
+    assert.equal(button.getAttribute('aria-label'), '退出全屏')
+  } finally { f.close() }
+})
+
+test('choosing a file without a native fullscreen exit does not trap a later Escape', async () => {
+  const f = await fixture()
+  try {
+    const doc = f.window.document
+    doc.documentElement.requestFullscreen = async () => { doc.fullscreenElement = doc.documentElement; doc.dispatchEvent(new f.window.Event('fullscreenchange')) }
+    doc.getElementById('focus-mode').click()
+    await until(() => doc.fullscreenElement)
+    const picker = doc.getElementById('image-file')
+    picker.click = () => {}
+    doc.getElementById('upload-image').click()
+    picker.dispatchEvent(new f.window.Event('cancel'))
+    doc.fullscreenElement = null
+    doc.dispatchEvent(new f.window.Event('fullscreenchange'))
+    assert.equal(doc.body.classList.contains('focus-mode'), false)
+  } finally { f.close() }
+})

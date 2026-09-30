@@ -273,3 +273,26 @@ test('a rename interrupted after its Git commit is recovered without another wri
     assert.equal((await (await f.request('/posts')).json()).length, 1)
   } finally { await f.close() }
 })
+
+test('public article views deduplicate concurrent visits and survive article renames', async () => {
+  const f = await fixture()
+  const visitor = '11111111-1111-4111-8111-111111111111'
+  const count = (name, id = visitor) => f.request(`/views/${encodeURIComponent(name)}`, { token: '', method: 'POST', body: { visitor: id } })
+  try {
+    await f.request('/sync', { method: 'POST' })
+    assert.equal((await (await f.request('/views/welcome.md', { token: '' })).json()).count, 0)
+    const repeats = await Promise.all(Array.from({ length: 5 }, () => count('welcome.md')))
+    for (const result of repeats) assert.equal((await result.json()).count, 1)
+    assert.equal((await (await count('welcome.md', '22222222-2222-4222-8222-222222222222')).json()).count, 2)
+    const before = await (await f.request('/posts/welcome.md')).json()
+    const renamed = await (await f.request('/posts/welcome.md', { method: 'PUT', body: { text: '---\ntitle: 新标题\n---\n正文', sha: before.sha, rename: true } })).json()
+    assert.equal((await (await count(renamed.name)).json()).count, 2)
+    assert.equal((await (await count('welcome.md')).json()).count, 2)
+    await f.request('/posts/new.md', { method: 'PUT', body: { text: '---\ntitle: 另一篇\n---\n正文', sha: null } })
+    assert.equal((await (await count('new.md')).json()).count, 1)
+    assert.equal((await count('missing.md')).status, 404)
+    assert.equal((await count('new.md', 'invalid')).status, 400)
+    assert.equal((await f.request('/sync', { token: '', method: 'POST' })).status, 401)
+    assert.equal((await f.request('/posts/new.md', { token: '', method: 'PUT', body: { text: 'bad', sha: null } })).status, 401)
+  } finally { await f.close() }
+})

@@ -28,7 +28,7 @@ function fixture({ generic = false, home = false, categories = false, categoryQu
     close() { this.readyState = 3 }
     send() {}
   }
-  window.fetch = async (url) => ({ ok: true, json: async () => String(url).endsWith('/posts') ? [{ name: post.name, sha: post.sha }] : { ...post } })
+  window.fetch = async (url) => ({ ok: true, json: async () => String(url).includes('/views') ? { count: 25 } : String(url).endsWith('/posts') ? [{ name: post.name, sha: post.sha }] : { ...post } })
   window.eval(script)
   return { window, update(text) { post = { ...post, sha: `revision-${++revision}`, text }; socket.onmessage({ data: JSON.stringify({ type: 'updated', name: post.name, sha: post.sha }) }) }, close: () => window.close() }
 }
@@ -122,5 +122,14 @@ $$f(x) = \max(0, x) = \begin{cases} 0 & \text{if } x < 0 \\ x & \text{if } x \ge
     const root = page.window.document.getElementById('live-reader')
     assert.equal(root.querySelectorAll('.katex').length, 5)
     assert.equal(root.querySelectorAll('.katex-error').length, 0)
+  } finally { page.close() }
+})
+
+ test('generic article displays its visit count beside the title', async () => {
+  const page = fixture({ generic: true })
+  try {
+    await until(() => page.window.document.getElementById('blog-publication'))
+    await new Promise(resolve => setTimeout(resolve, 10))
+    assert.match(page.window.document.querySelector('#reader-heading').textContent, /浏览量.*25/)
   } finally { page.close() }
 })

@@ -47,6 +47,7 @@
   }
 
   function countOnce() {
+    if (document.querySelector('meta[name="blog-live-views"]')) return
     const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
     const key = `blog-views:v1:${location.pathname}`
     const description = '同一浏览器每篇文章每天计一次；重复访问显示本机缓存。清除缓存或换设备会重新计数。'

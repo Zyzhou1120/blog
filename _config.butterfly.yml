@@ -35,7 +35,7 @@ busuanzi:
 
 CDN:
   option:
-      busuanzi: /js/article.js?v=3
+      busuanzi: /js/article.js?v=4
 
 post_meta:
   page:

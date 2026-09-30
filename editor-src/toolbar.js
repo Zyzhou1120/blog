@@ -110,10 +110,10 @@ export function setupToolbar({ showMessage }) {
       for (const item of document.querySelectorAll('button[data-layout]')) item.setAttribute('aria-pressed', String(item === button))
     })
   }
-  setupFullscreen({ showMessage })
+  const fullscreen = setupFullscreen({ showMessage })
   $('scroll-top').addEventListener('click', () => { input.scrollTop = 0; $('preview').scrollTop = 0 })
   $('editor-help').addEventListener('click', () => $('help-dialog').showModal())
   $('close-help').addEventListener('click', () => $('help-dialog').close())
   reset()
-  return { reset, update }
+  return { reset, update, chooseImageFile: fullscreen.chooseImageFile }
 }

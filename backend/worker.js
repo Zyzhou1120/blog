@@ -2,6 +2,7 @@ import { DurableObject } from 'cloudflare:workers'
 import { splitPost } from '../shared/post.mjs'
 import { publishWithTitle, readAliases } from './rename.js'
 import { uploadImage } from './images.js'
+import { initializeViews, articleViews } from './views.js'
 
 const MAX_BYTES = 512 * 1024
 const json = (data, status = 200) => Response.json(data, { status, headers: { 'Cache-Control': 'no-store' } })
@@ -35,7 +36,9 @@ export default {
     try {
       if (!['GET', 'PUT', 'POST'].includes(request.method)) throw fail('Method not allowed', 405)
       const token = request.headers.get('Authorization')?.match(/^Bearer (\S+)$/)?.[1]
-      if (request.method !== 'GET') {
+      const viewName = new URL(request.url).pathname.startsWith('/views/') ? decodeURIComponent(new URL(request.url).pathname.slice(7)) : ''
+      const publicView = request.method === 'POST' && validName(viewName)
+      if (request.method !== 'GET' && !publicView) {
         if (!token) throw fail('请先登录。', 401)
         const account = await github(env, token, '/user')
         if (account.login?.toLowerCase() !== env.OWNER.toLowerCase()) throw fail('仅博主可以发布文章。', 403)
@@ -57,6 +60,7 @@ export class Blog extends DurableObject {
     this.sql = ctx.storage.sql
     this.sql.exec('CREATE TABLE IF NOT EXISTS posts (name TEXT PRIMARY KEY, sha TEXT NOT NULL, text TEXT NOT NULL, updated TEXT NOT NULL)')
     this.sql.exec('CREATE TABLE IF NOT EXISTS aliases (name TEXT PRIMARY KEY, target TEXT NOT NULL)')
+    initializeViews(this.sql)
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping', 'pong'))
   }
 
@@ -89,6 +93,11 @@ export class Blog extends DurableObject {
       return new Response(null, { status: 101, webSocket: client })
     }
     if (url.pathname === '/health') return json({ ok: true })
+    if (url.pathname.startsWith('/views/') && ['GET', 'POST'].includes(request.method)) {
+      const name = decodeURIComponent(url.pathname.slice(7))
+      if (!validName(name)) return json({ message: '文件名无效。' }, 400)
+      return articleViews(this, request, name)
+    }
     if (url.pathname === '/posts' && request.method === 'GET') return json(this.sql.exec('SELECT name, sha, updated FROM posts ORDER BY name DESC').toArray())
     const name = url.pathname.startsWith('/posts/') ? decodeURIComponent(url.pathname.slice(7)) : null
     if (name && !validName(name)) return json({ message: '文件名无效。' }, 400)

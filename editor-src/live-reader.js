@@ -5,6 +5,7 @@ import excerpt from '../shared/excerpt.cjs'
 import mathExtension from '../shared/math.cjs'
 import { liveEndpoint, liveRequest, liveUrl } from './live-api.js'
 import { categoryPaths, categoryUrl, inCategory, renderCategories } from './categories.js'
+import { showArticleViews } from './views.js'
 
 marked.use(mathExtension())
 marked.setOptions({ breaks: true })
@@ -33,6 +34,13 @@ function renderPost(post) {
   const target = reader || document.getElementById('article-container')
   if (!target) return
   const anchor = document.getElementById('blog-publication')
+  if (!reader) {
+    const meta = document.querySelector('#post-meta .meta-secondline') || document.querySelector('#post-meta') || document.querySelector('#post')
+    if (meta) {
+      meta.querySelector('.post-meta-pv-cv')?.remove()
+      showArticleViews(post, meta)
+    }
+  }
   if (!reader && anchor?.dataset.sha === post.sha) return
   target.innerHTML = DOMPurify.sanitize(marked.parse(post.body), { USE_PROFILES: { html: true, svg: true, mathMl: true } })
   const marker = element('span')
@@ -83,6 +91,7 @@ function renderReaderHeading(post) {
     meta.append(date)
   }
   appendCategories(meta, post)
+  showArticleViews(post, meta)
   header.replaceChildren(title, meta)
 }
 

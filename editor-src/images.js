@@ -30,7 +30,7 @@ async function prepare(file) {
   } finally { bitmap.close() }
 }
 
-export function setupImages({ input, button, getDocument, upload, showMessage }) {
+export function setupImages({ input, button, getDocument, upload, showMessage, chooseImageFile = picker => picker.click() }) {
   const picker = document.createElement('input')
   picker.type = 'file'
   picker.accept = TYPES.join(',')
@@ -84,7 +84,7 @@ export function setupImages({ input, button, getDocument, upload, showMessage })
   button.addEventListener('click', () => {
     if (busy) return
     selection = capture()
-    if (selection) picker.click()
+    if (selection) chooseImageFile(picker)
   })
   picker.addEventListener('change', () => void send(picker.files?.[0], selection))
   input.addEventListener('paste', (event) => {

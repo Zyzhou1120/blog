@@ -44,6 +44,7 @@ createIcons({ icons })
 const controls = setupToolbar({ showMessage })
 const sidebarControls = setupSidebar()
 setupImages({
+  chooseImageFile: controls.chooseImageFile,
   input: $('markdown'), button: $('upload-image'), getDocument: () => token ? filename : '', showMessage,
   upload: async (content) => {
     if (!liveEndpoint) throw new Error('请先启用实时发布服务。')
