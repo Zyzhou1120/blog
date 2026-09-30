@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { build } from 'esbuild'
 import { JSDOM } from 'jsdom'
+import { splitPost, filenameForTitle } from '../shared/post.mjs'
 
 const html = readFileSync('source/editor/index.html', 'utf8').replace(/^---\nlayout: false\n---\n/, '')
 const bundle = await build({ entryPoints: ['editor-src/app.js'], bundle: true, format: 'iife', write: false, plugins: [{ name: 'test-config', setup(b) { b.onLoad({ filter: /realtime\.config\.json$/ }, () => ({ contents: '{"endpoint":"https://live.test"}', loader: 'json' })) } }] })
@@ -10,8 +11,9 @@ const until = async (condition) => {
   for (let i = 0; i < 100; i++) { if (condition()) return; await new Promise((r) => setTimeout(r, 5)) }
   throw new Error('Timed out waiting for live editor')
 }
-async function fixture({ failure = false, holdImage = null } = {}) {
+async function fixture({ failure = false, holdImage = null, holdSave = null, renamed = false, savedDraft = null } = {}) {
   let post = { name: 'welcome.md', sha: 'old-sha', text: '---\ntitle: 欢迎\n---\n2222\n3333' }
+  if (renamed) post.name = '欢迎.md'
   const dom = new JSDOM(html, { url: 'https://zyzhou1120.github.io/blog/editor/', runScripts: 'outside-only', pretendToBeVisual: true })
   const { window } = dom
   window.TextEncoder = TextEncoder
@@ -19,6 +21,8 @@ async function fixture({ failure = false, holdImage = null } = {}) {
   window.AbortSignal = AbortSignal
   window.confirm = () => true
   window.sessionStorage.setItem('blog-editor:token', 'owner-token')
+  if (renamed) window.sessionStorage.setItem('blog-editor:last-document', 'welcome.md')
+  if (savedDraft) window.localStorage.setItem('blog-editor:draft:welcome.md', JSON.stringify({ text: savedDraft, sha: 'old-sha' }))
   const requests = []
   window.fetch = async (url, options = {}) => {
     requests.push({ url, ...options })
@@ -32,10 +36,12 @@ async function fixture({ failure = false, holdImage = null } = {}) {
       if (failure) return reply({ message: '图片上传失败' }, 503)
       return reply({ url: 'https://raw.githubusercontent.com/Zyzhou1120/blog/main/source/images/uploads/test.png' })
     }
-    if (url === 'https://live.test/posts/welcome.md') {
+    if (String(url).startsWith('https://live.test/posts/')) {
       if (options.method === 'PUT') {
         if (failure) return reply({ message: '网络请求失败' }, 503)
-        post = { ...post, text: JSON.parse(options.body).text, sha: 'new-sha' }
+        const data = JSON.parse(options.body)
+        if (holdSave) await holdSave
+        post = { ...post, name: data.rename ? filenameForTitle(splitPost(data.text).meta.title) : post.name, text: data.text, sha: 'new-sha' }
       }
       return reply(post)
     }
@@ -55,7 +61,7 @@ test('live editor confirms publicly readable content without waiting for a Pages
     await until(() => !doc.getElementById('publish').disabled)
     assert.match(doc.getElementById('publication-state').textContent, /已发布/)
     assert.match(doc.getElementById('message').textContent, /发布成功/)
-    assert.equal(doc.getElementById('view-published').href, 'https://zyzhou1120.github.io/blog/read/?post=welcome.md')
+    assert.equal(doc.getElementById('view-published').href, 'https://zyzhou1120.github.io/blog/read/?post=%E6%AC%A2%E8%BF%8E.md')
     assert.equal(f.requests.filter((r) => r.method === 'PUT').length, 1)
     assert.equal(f.requests.some((r) => r.url.includes('publish-status.json') || r.url.includes('/actions/')), false)
     assert.equal(f.requests.find((r) => r.method === 'PUT').headers.Authorization, 'Bearer owner-token')
@@ -110,7 +116,7 @@ test('pasting an image preserves typing done while the upload is pending', async
     finish()
     await until(() => doc.querySelector('#preview img'))
     assert.match(input.value, /上传期间写的内容\n\n!\[截图\]/)
-    assert.ok(input.value.startsWith('---\ntitle: 欢迎\n---'))
+    assert.equal(doc.getElementById('post-title').value, '欢迎')
   } finally { finish(); f.close() }
 })
 
@@ -149,7 +155,9 @@ test('library uses article titles, searches metadata, and opens a local draft wi
     assert.equal(doc.querySelector('.post-item small').textContent, 'welcome.md')
     f.window.localStorage.setItem('blog-editor:draft:note.md', JSON.stringify({ sha: null, text: '---\ntitle: 我的笔记\ncategories: 学习\n---\n草稿正文' }))
     const input = doc.getElementById('markdown')
-    input.value = '---\ntitle: 深度学习引入\ncategories: 深度学习\n---\n正文'
+    doc.getElementById('post-title').value = '深度学习引入'
+    doc.getElementById('post-categories').value = '深度学习'
+    input.value = '正文'
     input.dispatchEvent(new f.window.Event('input'))
     assert.equal(doc.getElementById('document-title').textContent, '深度学习引入')
     assert.equal(doc.getElementById('post-count').textContent, '2')
@@ -170,4 +178,75 @@ test('library uses article titles, searches metadata, and opens a local draft wi
     search.dispatchEvent(new f.window.Event('input'))
     assert.equal(doc.querySelectorAll('.post-item').length, 2)
   } finally { f.close() }
+})
+
+test('replacing the body cannot erase the article title or turn it into a filename', async () => {
+  const f = await fixture()
+  try {
+    const doc = f.window.document
+    const input = doc.getElementById('markdown')
+    input.value = '只修改正文，不包含文章信息。'
+    input.dispatchEvent(new f.window.Event('input'))
+    assert.equal(doc.getElementById('document-title').textContent, '欢迎')
+    assert.equal(doc.querySelector('.post-item-title').textContent, '欢迎')
+  } finally { f.close() }
+})
+
+test('publishing adopts the canonical filename and persists metadata separately from the body', async () => {
+  const f = await fixture()
+  try {
+    const doc = f.window.document
+    doc.getElementById('post-categories').value = '学习 / 深度学习'
+    doc.getElementById('markdown').value = '新正文，不带文章信息'
+    doc.getElementById('markdown').dispatchEvent(new f.window.Event('input'))
+    doc.getElementById('publish').click()
+    await until(() => !doc.getElementById('publish').disabled)
+    const sent = JSON.parse(f.requests.find((r) => r.method === 'PUT').body)
+    assert.equal(sent.rename, true)
+    assert.match(sent.text, /title: 欢迎/)
+    assert.match(sent.text, /categories:\n  - 学习\n  - 深度学习/)
+    assert.equal(doc.getElementById('filename').textContent, '欢迎.md')
+    assert.equal(f.window.sessionStorage.getItem('blog-editor:last-document'), '欢迎.md')
+    assert.equal(doc.getElementById('markdown').value, '新正文，不带文章信息')
+    assert.equal(doc.querySelectorAll('.post-item').length, 1)
+    doc.getElementById('publish').click()
+    await until(() => !doc.getElementById('publish').disabled)
+    assert.equal(f.requests.filter((r) => r.method === 'PUT').length, 1)
+    doc.getElementById('post-title').value = ''
+    doc.getElementById('publish').click()
+    assert.equal(f.requests.filter((r) => r.method === 'PUT').length, 1)
+    assert.match(doc.getElementById('message').textContent, /标题/)
+  } finally { f.close() }
+})
+
+test('an old browser session follows a renamed post and keeps metadata when restoring a body-only draft', async () => {
+  const f = await fixture({ renamed: true, savedDraft: '3333\n浏览器里尚未发布的正文' })
+  try {
+    const doc = f.window.document
+    assert.equal(doc.getElementById('filename').textContent, '欢迎.md')
+    assert.equal(doc.getElementById('post-title').value, '欢迎')
+    assert.match(doc.getElementById('markdown').value, /尚未发布的正文/)
+    assert.equal(f.window.localStorage.getItem('blog-editor:draft:welcome.md'), null)
+    assert.match(f.window.localStorage.getItem('blog-editor:draft:欢迎.md'), /尚未发布的正文/)
+  } finally { f.close() }
+})
+
+test('typing another title and body during a rename stays in the local draft', async () => {
+  let finish
+  const holdSave = new Promise((resolve) => { finish = resolve })
+  const f = await fixture({ holdSave })
+  try {
+    const doc = f.window.document
+    doc.getElementById('publish').click()
+    await until(() => f.requests.some((r) => r.method === 'PUT'))
+    doc.getElementById('post-title').value = '另一个标题'
+    doc.getElementById('markdown').value += '\n保存期间写的内容'
+    doc.getElementById('markdown').dispatchEvent(new f.window.Event('input'))
+    finish()
+    await until(() => !doc.getElementById('publish').disabled)
+    assert.equal(doc.getElementById('post-title').value, '另一个标题')
+    assert.equal(doc.getElementById('filename').textContent, '欢迎.md')
+    assert.match(f.window.localStorage.getItem('blog-editor:draft:欢迎.md'), /另一个标题[\s\S]*保存期间写的内容/)
+    assert.equal(doc.getElementById('dirty-dot').hidden, false)
+  } finally { finish(); f.close() }
 })

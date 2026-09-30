@@ -14,6 +14,14 @@ async function fixture() {
   const images = new Map()
   let failPut = false
   let writes = 0
+  let head = 'head-0'
+  let aliases = {}
+  let raceRef = false
+  let counter = 0
+  const snapshots = new Map()
+  const blobs = new Map()
+  const trees = new Map()
+  const commits = new Map()
   const mf = new Miniflare(convertV4MiniflareOptions({
     modules: true, script: bundle.outputFiles[0].text, compatibilityDate: '2026-09-29',
     durableObjects: { BLOG: { className: 'Blog', useSQLite: true } },
@@ -22,6 +30,49 @@ async function fixture() {
       const url = new URL(request.url)
       const reply = (body, status = 200) => Response.json(body, { status })
       if (url.pathname === '/user') return reply({ login: request.headers.get('Authorization') === 'Bearer owner-token' ? 'Zyzhou1120' : 'someone-else' })
+      const path = url.pathname.replace('/repos/Zyzhou1120/blog', '')
+      if (path === '/git/ref/heads/main') {
+        snapshots.set(head, { files: new Map(files), aliases: { ...aliases } })
+        return reply({ object: { sha: head } })
+      }
+      if (path === '/contents/post-aliases.json') {
+        const value = snapshots.get(url.searchParams.get('ref'))?.aliases || aliases
+        return Object.keys(value).length ? reply({ content: Buffer.from(JSON.stringify(value)).toString('base64') }) : reply({}, 404)
+      }
+      if (path.startsWith('/git/commits/') && request.method === 'GET') return reply({ tree: { sha: path.split('/').at(-1) } })
+      if (path === '/git/blobs') {
+        const data = await request.json()
+        blobs.set(blob(data.content), data.content)
+        return reply({ sha: blob(data.content) })
+      }
+      if (path === '/git/trees') {
+        const data = await request.json()
+        const id = `tree-${++counter}`
+        trees.set(id, data)
+        return reply({ sha: id })
+      }
+      if (path === '/git/commits') {
+        const data = await request.json()
+        const id = `commit-${++counter}`
+        commits.set(id, data)
+        return reply({ sha: id })
+      }
+      if (path === '/git/refs/heads/main') {
+        writes++
+        const data = await request.json()
+        assert.equal(data.force, false)
+        if (failPut) return reply({}, 500)
+        const commit = commits.get(data.sha)
+        if (raceRef || commit.parents[0] !== head) return reply({}, 409)
+        for (const entry of trees.get(commit.tree).tree) {
+          if (entry.path === 'post-aliases.json') { aliases = JSON.parse(entry.content); continue }
+          const name = entry.path.slice('source/_posts/'.length)
+          if (entry.sha === null) files.delete(name)
+          else files.set(name, { text: blobs.get(entry.sha), sha: entry.sha })
+        }
+        head = data.sha
+        return reply({ object: { sha: head } })
+      }
       if (url.pathname.includes('/source/images/uploads/')) {
         const path = url.pathname
         if (request.method === 'PUT') {
@@ -35,7 +86,7 @@ async function fixture() {
       }
       if (url.pathname.endsWith('/source/_posts')) return reply([...files].map(([name, file]) => ({ type: 'file', name, sha: file.sha })))
       const name = decodeURIComponent(url.pathname.split('/').at(-1))
-      const file = files.get(name)
+      const file = (snapshots.get(url.searchParams.get('ref'))?.files || files).get(name)
       if (request.method === 'PUT') {
         writes++
         if (failPut) return reply({ message: 'Upstream failure' }, 500)
@@ -50,7 +101,7 @@ async function fixture() {
   }))
   await mf.ready
   const request = (path, { token = 'owner-token', method = 'GET', body, headers } = {}) => mf.dispatchFetch(`https://live.test${path}`, { method, headers: { Origin: origin, ...(token ? { Authorization: `Bearer ${token}` } : {}), ...headers }, ...(body ? { body: JSON.stringify(body) } : {}) })
-  return { mf, request, files, images, failPut() { failPut = true }, get writes() { return writes }, close: () => mf.dispose() }
+  return { mf, request, files, images, failPut() { failPut = true }, get writes() { return writes }, get aliases() { return aliases }, raceRef() { raceRef = true }, close: () => mf.dispose() }
 }
 
 test('owner publishes to GitHub and SQLite; an already-open visitor receives the new version', async () => {
@@ -134,5 +185,91 @@ test('failed backup does not change the public database; interrupted acknowledge
     const failed = await f.request('/posts/welcome.md', { method: 'PUT', body: { text: `${text}5555\n`, sha: blob(text) } })
     assert.equal(failed.status, 500)
     assert.equal((await (await f.request('/posts/welcome.md')).json()).text, text)
+  } finally { await f.close() }
+})
+
+test('title changes move the file atomically, preserve old links and survive sync and retries', async () => {
+  const f = await fixture()
+  try {
+    const original = '---\ntitle: 欢迎\ndate: 2026-09-29\ncategories: [学习]\n---\n正文\n'
+    f.files.set('welcome.md', { text: original, sha: blob(original) })
+    await f.request('/sync', { method: 'POST' })
+    const publish = (name, text, sha) => f.request(`/posts/${encodeURIComponent(name)}`, { method: 'PUT', body: { text, sha, rename: true } })
+    const first = await publish('welcome.md', original.replace('title: 欢迎', 'title: 深度学习引入'), blob(original))
+    assert.equal(first.status, 200)
+    const post = await first.json()
+    assert.equal(post.name, '深度学习引入.md')
+    assert.equal(f.files.has('welcome.md'), false)
+    assert.equal(f.files.get(post.name).text, post.text)
+    assert.match(post.text, /permalink: 2026\/09\/29\/welcome\//)
+    assert.equal(f.aliases['welcome.md'], post.name)
+    assert.equal((await (await f.request('/posts/welcome.md', { token: '' })).json()).sha, post.sha)
+    assert.equal((await publish('welcome.md', original.replace('title: 欢迎', 'title: 深度学习引入'), blob(original))).status, 200)
+    const second = await (await publish(post.name, post.text.replace('深度学习引入', '学习笔记'), post.sha)).json()
+    assert.equal(second.name, '学习笔记.md')
+    assert.equal(f.files.size, 1)
+    assert.equal(f.aliases['welcome.md'], second.name)
+    assert.equal(f.aliases[post.name], second.name)
+    await f.request('/sync', { method: 'POST' })
+    assert.equal((await (await f.request('/posts/welcome.md', { token: '' })).json()).text, second.text)
+    assert.equal((await (await f.request('/posts')).json()).length, 1)
+    // Returning to a previous title is safe when that alias belongs to this article.
+    const reverted = await publish(second.name, second.text.replace('学习笔记', '深度学习引入'), second.sha)
+    assert.equal(reverted.status, 200)
+    assert.equal((await (await f.request('/posts/welcome.md')).json()).name, post.name)
+  } finally { await f.close() }
+})
+
+test('missing titles, same-name collisions and concurrent repository writes cannot lose content', async () => {
+  const f = await fixture()
+  try {
+    f.files.set('已存在.md', { text: '另一篇文章', sha: blob('另一篇文章') })
+    await f.request('/sync', { method: 'POST' })
+    const before = await (await f.request('/posts/welcome.md')).json()
+    const send = (text) => f.request('/posts/welcome.md', { method: 'PUT', body: { text, sha: before.sha, rename: true } })
+    assert.equal((await send('替换了整篇正文')).status, 400)
+    assert.equal((await send(before.text.replace('title: 欢迎', 'title: 已存在'))).status, 400)
+    assert.equal(f.files.get('已存在.md').text, '另一篇文章')
+    f.raceRef()
+    assert.equal((await send(before.text.replace('title: 欢迎', 'title: 新标题'))).status, 409)
+    assert.equal(f.files.get('welcome.md').text, before.text)
+    assert.equal(f.files.has('新标题.md'), false)
+    assert.equal((await (await f.request('/posts/welcome.md')).json()).sha, before.sha)
+  } finally { await f.close() }
+})
+
+test('new articles publish directly under their title, and failed renames preserve the old article', async () => {
+  const f = await fixture()
+  try {
+    await f.request('/sync', { method: 'POST' })
+    const text = '---\ntitle: 新文章\ndate: 2026-09-30\n---\n新正文'
+    const result = await f.request('/posts/draft.md', { method: 'PUT', body: { text, sha: null, rename: true } })
+    assert.equal(result.status, 200)
+    assert.equal((await result.json()).name, '新文章.md')
+    assert.equal(f.files.has('draft.md'), false)
+    const before = await (await f.request('/posts/welcome.md')).json()
+    f.failPut()
+    const failed = await f.request('/posts/welcome.md', { method: 'PUT', body: { text: before.text, sha: before.sha, rename: true } })
+    assert.equal(failed.status, 500)
+    assert.equal((await (await f.request('/posts/welcome.md')).json()).name, 'welcome.md')
+    assert.equal(f.files.has('welcome.md'), true)
+    assert.equal(f.files.has('欢迎.md'), false)
+  } finally { await f.close() }
+})
+
+test('a rename interrupted after its Git commit is recovered without another write', async () => {
+  const f = await fixture()
+  try {
+    await f.request('/sync', { method: 'POST' })
+    const before = await (await f.request('/posts/welcome.md')).json()
+    const text = before.text.replace('title: 欢迎', 'title: 已改名')
+    f.files.delete('welcome.md')
+    f.files.set('已改名.md', { text, sha: blob(text) })
+    f.aliases['welcome.md'] = '已改名.md'
+    const result = await f.request('/posts/welcome.md', { method: 'PUT', body: { text, sha: before.sha, rename: true } })
+    assert.equal(result.status, 200)
+    assert.equal(f.writes, 0)
+    assert.equal((await (await f.request('/posts/welcome.md')).json()).name, '已改名.md')
+    assert.equal((await (await f.request('/posts')).json()).length, 1)
   } finally { await f.close() }
 })

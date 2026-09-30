@@ -1,4 +1,6 @@
 import { DurableObject } from 'cloudflare:workers'
+import { splitPost } from '../shared/post.mjs'
+import { publishWithTitle, readAliases } from './rename.js'
 import { uploadImage } from './images.js'
 
 const MAX_BYTES = 512 * 1024
@@ -54,10 +56,18 @@ export class Blog extends DurableObject {
     super(ctx, env)
     this.sql = ctx.storage.sql
     this.sql.exec('CREATE TABLE IF NOT EXISTS posts (name TEXT PRIMARY KEY, sha TEXT NOT NULL, text TEXT NOT NULL, updated TEXT NOT NULL)')
+    this.sql.exec('CREATE TABLE IF NOT EXISTS aliases (name TEXT PRIMARY KEY, target TEXT NOT NULL)')
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping', 'pong'))
   }
 
   post(name) { return this.sql.exec('SELECT * FROM posts WHERE name = ?', name).toArray()[0] }
+  resolve(name) { return this.sql.exec('SELECT target FROM aliases WHERE name = ?', name).toArray()[0]?.target || name }
+  importAliases(aliases) {
+    this.sql.exec('DELETE FROM aliases')
+    for (const [name, target] of Object.entries(aliases)) {
+      if (validName(name) && validName(target) && name !== target) this.sql.exec('INSERT INTO aliases VALUES (?, ?)', name, target)
+    }
+  }
   repo(path = '') { return `/repos/${this.env.OWNER}/${this.env.REPO}/contents/source/_posts${path}` }
   save(name, sha, text) {
     const updated = new Date().toISOString()
@@ -82,12 +92,13 @@ export class Blog extends DurableObject {
     if (url.pathname === '/posts' && request.method === 'GET') return json(this.sql.exec('SELECT name, sha, updated FROM posts ORDER BY name DESC').toArray())
     const name = url.pathname.startsWith('/posts/') ? decodeURIComponent(url.pathname.slice(7)) : null
     if (name && !validName(name)) return json({ message: '文件名无效。' }, 400)
-    if (name && request.method === 'GET') return this.post(name) ? json(this.post(name)) : json({ message: '文章不存在。' }, 404)
+    if (name && request.method === 'GET') return this.post(this.resolve(name)) ? json(this.post(this.resolve(name))) : json({ message: '文章不存在。' }, 404)
     const token = request.headers.get('Authorization')?.slice(7)
     if (url.pathname === '/sync' && request.method === 'POST') {
       // Only the verified owner reaches mutations. Serialize import and writes across tabs.
       return this.ctx.blockConcurrencyWhile(async () => {
         const files = await github(this.env, token, `${this.repo()}?ref=${this.env.BRANCH}`)
+        const aliases = await readAliases(this.env, token, github)
         const names = new Set()
         for (const file of files) {
           if (file.type !== 'file' || !validName(file.name)) continue
@@ -100,6 +111,7 @@ export class Blog extends DurableObject {
         for (const old of this.sql.exec('SELECT name FROM posts').toArray()) {
           if (!names.has(old.name)) this.sql.exec('DELETE FROM posts WHERE name = ?', old.name)
         }
+        this.importAliases(aliases)
         return json({ ok: true })
       })
     }
@@ -112,7 +124,20 @@ export class Blog extends DurableObject {
       if (typeof data.text !== 'string' || new TextEncoder().encode(data.text).length > MAX_BYTES || !(data.sha === null || typeof data.sha === 'string')) return json({ message: '文章格式无效或超过 512 KB。' }, 400)
       return this.ctx.blockConcurrencyWhile(async () => {
         const current = this.post(name)
-        if ((current?.sha || null) !== data.sha) return json({ message: '文章已有新修改，请载入最新版后重试。' }, 409)
+        if ((current?.sha || null) !== data.sha && !(data.rename === true && this.resolve(name) !== name)) return json({ message: '文章已有新修改，请载入最新版后重试。' }, 409)
+        let parsed
+        try { parsed = splitPost(data.text) } catch { return json({ message: '文章信息格式无效，请检查标题和分类。' }, 400) }
+        if (typeof parsed.meta.title !== 'string' || !parsed.meta.title.trim()) return json({ message: '文章缺少标题。请刷新编辑页，在上方填写标题后再发布，正文草稿已保留。' }, 400)
+        if (data.rename === true) {
+          const result = await publishWithTitle(this.env, token, github, name, data)
+          const saved = this.ctx.storage.transactionSync(() => {
+            this.importAliases(result.aliases)
+            if (name !== result.name) this.sql.exec('DELETE FROM posts WHERE name = ?', name)
+            return this.save(result.name, result.sha, result.text)
+          })
+          return json(saved)
+        }
+        if (this.resolve(name) !== name) return json({ message: '文章已改名，请刷新文章列表后重新载入。' }, 409)
         const path = this.repo(`/${encodeURIComponent(name)}`)
         let remote = null
         try { remote = await github(this.env, token, `${path}?ref=${this.env.BRANCH}`) } catch (error) { if (error.status !== 404) throw error }

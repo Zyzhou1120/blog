@@ -42,9 +42,7 @@ export function setupImages({ input, button, getDocument, upload, showMessage })
 
   function capture() {
     if (!getDocument()) { showMessage('请先选择或新建文章。', true); return null }
-    const frontmatter = input.value.match(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/)?.[0].length || 0
-    // Default cursor starts in the metadata after opening a post; insert at the end of the body.
-    const start = input.selectionStart < frontmatter ? input.value.length : input.selectionStart
+    const start = input.selectionStart
     return { name: getDocument(), text: input.value, start, end: Math.max(start, input.selectionEnd) }
   }
 

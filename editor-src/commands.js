@@ -1,6 +1,6 @@
-export function applyMarkdownCommand(text, start, end, command) {
+export function applyMarkdownCommand(text, start, end, command, bodyOnly = false) {
   const frontmatter = text.match(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/)?.[0].length || 0
-  if (start < frontmatter) return null
+  if (!bodyOnly && start < frontmatter) return null
   const selected = text.slice(start, end)
   function replace(from, to, value, selectionStart = 0, selectionEnd = value.length) {
     return { text: text.slice(0, from) + value + text.slice(to), start: from + selectionStart, end: from + selectionEnd }

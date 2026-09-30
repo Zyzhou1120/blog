@@ -1,6 +1,7 @@
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
 import { parse as parseYaml } from 'yaml'
+import { splitPost, joinPost, filenameForTitle } from '../shared/post.mjs'
 import mathExtension from '../shared/math.cjs'
 import { createPublicationTracker } from './publication.js'
 import { setupToolbar } from './toolbar.js'
@@ -34,6 +35,8 @@ let baseText = ''
 let saveTimer = null
 let activeView = 'edit'
 let liveCheck = 0
+let documentSource = splitPost('')
+let initialFields = {}
 
 marked.use(mathExtension())
 marked.setOptions({ breaks: true })
@@ -181,8 +184,38 @@ function isConflict(error) {
   return error.status === 409 || (error.status === 422 && /does not match|sha/i.test(error.message))
 }
 
+function setSource(text, preserveMetadata = false) {
+  const next = splitPost(text)
+  if (preserveMetadata && !next.header) {
+    $('markdown').value = text
+    return
+  }
+  documentSource = next
+  initialFields = {
+    title: String(next.meta.title || ''),
+    categories: categoryPaths(next.meta.categories).map((path) => path.join(' / ')).join('、'),
+    date: String(next.meta.date || '').slice(0, 10),
+  }
+  for (const [key, value] of Object.entries(initialFields)) $('post-' + key).value = value
+  $('markdown').value = next.body
+}
+
+function currentSource() {
+  const meta = { ...documentSource.meta }
+  for (const key of ['title', 'date']) {
+    const value = $('post-' + key).value.trim()
+    if (value !== initialFields[key]) meta[key] = value
+  }
+  const categories = $('post-categories').value.trim()
+  if (categories !== initialFields.categories) {
+    const paths = categories.split(/[、,，]/).map((path) => path.split('/').map((part) => part.trim()).filter(Boolean)).filter((path) => path.length)
+    meta.categories = paths.length === 1 ? paths[0] : paths
+  }
+  return joinPost(documentSource, meta, $('markdown').value)
+}
+
 function unsaved() {
-  return filename && $('markdown').value !== baseText
+  return filename && currentSource() !== baseText
 }
 
 function canLeave() {
@@ -192,7 +225,7 @@ function canLeave() {
 function storeDraft() {
   if (!filename) return
   if (unsaved()) {
-    localStorage.setItem(draftKey(filename), JSON.stringify({ text: $('markdown').value, sha }))
+    localStorage.setItem(draftKey(filename), JSON.stringify({ text: currentSource(), sha }))
     setStatus('本地草稿已保存')
   } else {
     localStorage.removeItem(draftKey(filename))
@@ -201,7 +234,7 @@ function storeDraft() {
 }
 
 function renderPreview() {
-  const markdown = $('markdown').value
+  const markdown = currentSource()
   const match = markdown.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/)
   let body = markdown
   let title = ''
@@ -247,12 +280,15 @@ function renderPosts() {
     const active = post.name === filename
     let draft
     try { draft = JSON.parse(localStorage.getItem(draftKey(post.name)) || 'null') } catch { /* Ignore a damaged local draft. */ }
-    const meta = active ? describePost($('markdown').value, post.name) : draft ? describePost(draft.text, post.name) : postDetails.get(post.name)?.meta || describePost('', post.name)
+    const meta = active ? describePost(currentSource(), post.name) : draft ? describePost(draft.text, post.name) : postDetails.get(post.name)?.meta || describePost('', post.name)
     if (active) {
       $('document-title').textContent = meta.title
       $('document-title').title = meta.title
       $('filename').textContent = post.name
       $('filename').title = `source/_posts/${post.name}`
+      let nextName = ''
+      try { nextName = filenameForTitle($('post-title').value) } catch { /* Title may be incomplete while typing. */ }
+      $('filename-hint').textContent = nextName && nextName !== filename ? `发布后文件名：${nextName}` : '文件名随标题自动更新'
     }
     if (query && !`${meta.title} ${meta.category} ${post.name}`.toLocaleLowerCase().includes(query)) continue
     const group = groups.get(meta.category) || []
@@ -327,13 +363,13 @@ async function loadPosts() {
 }
 
 function setDocument(name, text, currentSha) {
+  setSource(text)
   filename = name
   sha = currentSha
   baseText = text
   postDetails.set(name, { sha: currentSha, meta: describePost(text, name) })
   sessionStorage.setItem(LAST_DOCUMENT_KEY, name)
   $('filename').textContent = name
-  $('markdown').value = text
   $('draft-notice').hidden = true
   $('conflict-notice').hidden = true
   $('reload-post').disabled = !currentSha
@@ -342,6 +378,7 @@ function setDocument(name, text, currentSha) {
   renderPosts()
   controls.reset()
   setStatus(currentSha ? '已保存到仓库' : '本地草稿')
+  if (currentSha && !$('post-title').value.trim()) showMessage('这篇文章缺少标题，请在上方填写后发布。正文已完整保留。', true)
   trackPublication()
   sidebarControls.closeOnMobile()
 }
@@ -354,7 +391,7 @@ async function openPost(post, force = false) {
     if (post.local) {
       const draft = JSON.parse(localStorage.getItem(draftKey(post.name)))
       setDocument(post.name, '', null)
-      $('markdown').value = draft.text
+      setSource(draft.text, true)
       renderPreview()
       controls.reset()
       setStatus('本地草稿已恢复')
@@ -367,7 +404,7 @@ async function openPost(post, force = false) {
       const draft = JSON.parse(saved)
       if (draft.text !== baseText) {
         if (draft.sha === sha) {
-          $('markdown').value = draft.text
+          setSource(draft.text, true)
           renderPreview()
           controls.reset()
           setStatus('本地草稿已恢复')
@@ -391,11 +428,11 @@ function localDate() {
 function createPost(title) {
   if (!canLeave()) return
   storeDraft()
-  const slug = Array.from(title.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '')).slice(0, 48).join('')
-  const name = `${localDate()}-${slug || 'post'}.md`
+  const name = filenameForTitle(title)
+  if (posts.some((post) => post.name === name) || localStorage.getItem(draftKey(name))) return showMessage('已有同名文章或草稿，请换一个标题。', true)
   const text = `---\ntitle: ${JSON.stringify(title)}\ndate: ${localDate()}\ntags: []\ncategories: []\n---\n\n`
   setDocument(name, '', null)
-  $('markdown').value = text
+  setSource(text)
   renderPreview()
   controls.reset()
   storeDraft()
@@ -413,6 +450,7 @@ function setView(view) {
 
 async function publish() {
   if (!filename) return showMessage('请先选择或新建文章。', true)
+  try { filenameForTitle($('post-title').value) } catch (error) { $('post-title').focus(); return showMessage(error.message, true) }
   if (liveEndpoint) return publishLive()
   if (!unsaved()) {
     await publication.check(true)
@@ -427,7 +465,7 @@ async function publish() {
   const button = $('publish')
   const submittingName = filename
   const submittingSha = sha
-  const text = $('markdown').value
+  const text = currentSource()
   button.disabled = true
   setStatus('正在提交...')
   try {
@@ -476,14 +514,15 @@ async function publish() {
 }
 
 async function publishLive() {
-  if (!unsaved()) {
+  const nextName = filenameForTitle($('post-title').value)
+  if (!unsaved() && nextName === filename) {
     const confirmed = await checkLivePublication()
     return showMessage(confirmed ? '这份内容已经上线，可以查看最新文章。' : '尚未确认上线，请查看上方状态。', !confirmed)
   }
   clearTimeout(saveTimer)
   storeDraft()
   const name = filename
-  const text = $('markdown').value
+  const text = currentSource()
   const previousSha = sha
   liveCheck += 1
   $('publish').disabled = true
@@ -492,10 +531,18 @@ async function publishLive() {
   $('publication-bar').dataset.state = 'publishing'
   $('publication-state').textContent = '正在保存文章并通知访客…'
   try {
-    const post = await liveRequest(`/posts/${encodeURIComponent(name)}`, { method: 'PUT', body: JSON.stringify({ text, sha: previousSha }) }, token)
+    const post = await liveRequest(`/posts/${encodeURIComponent(name)}`, { method: 'PUT', body: JSON.stringify({ text, sha: previousSha, rename: true }) }, token)
     if (filename !== name) { await loadPosts(); return }
+    const editedWhileSaving = currentSource() !== text
+    filename = post.name
+    sessionStorage.setItem(LAST_DOCUMENT_KEY, filename)
+    localStorage.removeItem(draftKey(name))
+    postDetails.delete(name)
+    posts = posts.filter((item) => item.name !== name)
     sha = post.sha
-    baseText = text
+    baseText = post.text
+    if (!editedWhileSaving) setSource(post.text)
+    else if (splitPost(post.text).meta.permalink) documentSource.meta.permalink = splitPost(post.text).meta.permalink
     storeDraft()
     renderPreview()
     const confirmed = await checkLivePublication()
@@ -526,14 +573,28 @@ async function connect(nextToken) {
     $('token').value = ''
     $('auth-view').hidden = true
     $('editor-view').hidden = false
-    const lastDocument = sessionStorage.getItem(LAST_DOCUMENT_KEY)
-    const lastPost = posts.find((post) => post.name === lastDocument)
+    let lastDocument = sessionStorage.getItem(LAST_DOCUMENT_KEY)
+    let lastPost = posts.find((post) => post.name === lastDocument)
+    if (lastDocument && !lastPost && liveEndpoint) {
+      try {
+        const resolved = await liveRequest(`/posts/${encodeURIComponent(lastDocument)}`)
+        lastPost = posts.find((post) => post.name === resolved.name)
+        if (lastPost) {
+          const draft = localStorage.getItem(draftKey(lastDocument))
+          if (draft && !localStorage.getItem(draftKey(lastPost.name))) {
+            localStorage.setItem(draftKey(lastPost.name), draft)
+            localStorage.removeItem(draftKey(lastDocument))
+          }
+          lastDocument = lastPost.name
+        }
+      } catch { /* A local-only draft has no remote article yet. */ }
+    }
     if (lastPost) {
       await openPost(lastPost)
     } else if (lastDocument && localStorage.getItem(draftKey(lastDocument))) {
       const draft = JSON.parse(localStorage.getItem(draftKey(lastDocument)))
       setDocument(lastDocument, '', null)
-      $('markdown').value = draft.text
+      setSource(draft.text, true)
       renderPreview()
       controls.reset()
       setStatus('本地草稿已恢复')
@@ -556,12 +617,14 @@ $('auth-form').addEventListener('submit', (event) => {
   connect($('token').value.trim())
 })
 
-$('markdown').addEventListener('input', () => {
+function contentChanged() {
   renderPreview()
   setStatus('正在保存草稿...')
   clearTimeout(saveTimer)
   saveTimer = setTimeout(storeDraft, 350)
-})
+}
+$('markdown').addEventListener('input', contentChanged)
+for (const key of ['title', 'categories', 'date']) $('post-' + key).addEventListener('input', contentChanged)
 
 $('post-search').addEventListener('input', renderPosts)
 
@@ -590,7 +653,7 @@ $('refresh-posts').addEventListener('click', async () => {
 })
 $('restore-draft').addEventListener('click', () => {
   const draft = JSON.parse(localStorage.getItem(draftKey(filename)))
-  if (draft) $('markdown').value = draft.text
+  if (draft) setSource(draft.text, true)
   $('draft-notice').hidden = true
   renderPreview()
   controls.reset()

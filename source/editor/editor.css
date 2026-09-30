@@ -799,3 +799,12 @@ body.focus-mode .sidebar { display: none; }
 }
 /* Whole-pixel line boxes keep gutter measurements aligned in long documents. */
 #markdown, #line-numbers { line-height: 26px; }
+
+.post-fields { display: flex; gap: 20px; padding: 12px 24px; background: #fff; border-bottom: 1px solid var(--border, #dce5e8); flex-shrink: 0; }
+.post-fields label { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 5px; color: #647983; font-size: 12px; }
+.post-fields .post-title-field { flex: 2; }
+.post-fields .post-date-field { flex: 0 0 145px; }
+.post-fields input { width: 100%; min-width: 0; box-sizing: border-box; border: 1px solid #dce5e8; border-radius: 6px; padding: 8px 10px; font: inherit; font-size: 14px; color: #253840; background: #fff; }
+.post-fields input:focus { outline: 2px solid #258474; outline-offset: 1px; }
+.post-fields small { color: #81949d; font-size: 11px; overflow-wrap: anywhere; }
+@media (max-width: 850px) { .post-fields { gap: 10px; padding: 10px 14px; flex-wrap: wrap; } .post-fields .post-title-field { flex: 1 0 100%; } .post-fields .post-date-field { flex-basis: 135px; } }

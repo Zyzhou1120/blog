@@ -10,8 +10,8 @@ layout: false
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.github.com https://zyzhou-blog-live.zyzhou1120-blog.workers.dev; img-src 'self' data: https:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>文章编辑 | 我的博客</title>
   <link rel="stylesheet" href="../vendor/katex/katex.min.css">
-  <link rel="stylesheet" href="editor.css?v=6">
-  <script src="editor.js?v=10" defer></script>
+  <link rel="stylesheet" href="editor.css?v=7">
+  <script src="editor.js?v=11" defer></script>
 </head>
 <body data-view="edit" data-layout="split">
   <div id="auth-view" class="auth-view">
@@ -42,6 +42,11 @@ layout: false
       </aside>
       <main class="main-area">
         <div class="document-bar"><div class="document-name"><i data-lucide="file-text"></i><div class="document-label"><span id="document-title">选择文章</span><span id="filename" class="document-filename"></span></div><span id="dirty-dot" class="dirty-dot" hidden></span><button id="reload-post" class="icon-button reload-post" type="button" aria-label="载入最新文章" title="载入最新文章" disabled><i data-lucide="refresh-cw"></i></button></div><div class="document-meta"><span id="word-count">0 字</span><div class="view-switch" role="group" aria-label="视图"><button id="edit-tab" class="active" type="button">编辑</button><button id="preview-tab" type="button">预览</button></div></div></div>
+        <div class="post-fields">
+          <label class="post-title-field">文章标题<input id="post-title" type="text" placeholder="填写文章标题" maxlength="160" autocomplete="off"><small id="filename-hint">文件名随标题自动更新</small></label>
+          <label>分类<input id="post-categories" type="text" placeholder="如：深度学习" autocomplete="off"><small>子分类用 /，多个分类用顿号分隔</small></label>
+          <label class="post-date-field">发布日期<input id="post-date" type="date"></label>
+        </div>
         <div id="conflict-notice" class="draft-notice conflict-notice" hidden><span>远程文章已有新修改，你的草稿已保存在本地。</span><button id="reload-conflict" type="button">载入最新版本</button></div>
         <div id="draft-notice" class="draft-notice" hidden><span id="draft-copy">发现未提交的本地草稿</span><button id="restore-draft" type="button">恢复</button><button id="dismiss-draft" type="button" aria-label="忽略草稿" title="忽略草稿"><i data-lucide="x"></i></button></div>
         <div id="publication-bar" class="publication-bar" data-state="unpublished"><span id="publication-state" role="status">尚未发布</span><div class="publication-actions"><button id="check-publication" type="button">检查发布</button><a id="view-published" target="_blank" rel="noopener noreferrer" hidden>查看最新文章 <i data-lucide="external-link"></i></a><a href="https://github.com/Zyzhou1120/blog/actions/workflows/pages.yml" target="_blank" rel="noopener noreferrer">发布记录</a></div></div>
@@ -71,6 +76,6 @@ layout: false
   </div>
 
   <dialog id="new-dialog" class="new-dialog"><form id="new-form" method="dialog"><div class="dialog-head"><h2>新文章</h2><button id="close-dialog" class="icon-button" type="button" aria-label="关闭" title="关闭"><i data-lucide="x"></i></button></div><label for="new-title">标题</label><input id="new-title" type="text" maxlength="100" required placeholder="输入文章标题"><div class="dialog-actions"><button id="cancel-new" class="quiet-button" type="button">取消</button><button class="primary-button" type="submit">创建草稿</button></div></form></dialog>
-  <dialog id="help-dialog" class="new-dialog help-dialog"><div class="help-content"><div class="dialog-head"><h2>写作帮助</h2><button id="close-help" class="icon-button" type="button" aria-label="关闭帮助"><i data-lucide="x"></i></button></div><p>选中正文后点击工具栏，或在光标处插入格式。开头两条 <code>---</code> 之间是标题、日期等文章信息。</p><p>点击图片按钮选择本地图片，或直接在正文中粘贴截图。支持 PNG、JPG、WebP、GIF；静态图片超过 2 MB 会自动压缩，原文件最大 10 MB，GIF 最大 2 MB。上传后自动插入链接，提交文章后对外显示。</p><p><kbd>⌘ / Ctrl + B</kbd> 加粗 · <kbd>I</kbd> 斜体 · <kbd>K</kbd> 链接<br><kbd>⌘ / Ctrl + Z</kbd> 撤销 · <kbd>Shift + Z</kbd> 重做<br><kbd>⌘ / Ctrl + S</kbd> 保存本地草稿</p><p>工具栏的公式按钮支持 LaTeX。单行换行会在预览和公开文章中保留。</p><p>点击“提交文章”后请看发布状态。“已发布”表示公开网站已包含该版本；“查看最新文章”会打开带版本标记的页面，避免旧缓存。</p></div></dialog>
+  <dialog id="help-dialog" class="new-dialog help-dialog"><div class="help-content"><div class="dialog-head"><h2>写作帮助</h2><button id="close-help" class="icon-button" type="button" aria-label="关闭帮助"><i data-lucide="x"></i></button></div><p>选中正文后点击工具栏，或在光标处插入格式。标题、分类和日期在上方单独填写，下方只编辑正文。发布时文件名随标题更新，旧链接仍可访问。</p><p>点击图片按钮选择本地图片，或直接在正文中粘贴截图。支持 PNG、JPG、WebP、GIF；静态图片超过 2 MB 会自动压缩，原文件最大 10 MB，GIF 最大 2 MB。上传后自动插入链接，提交文章后对外显示。</p><p><kbd>⌘ / Ctrl + B</kbd> 加粗 · <kbd>I</kbd> 斜体 · <kbd>K</kbd> 链接<br><kbd>⌘ / Ctrl + Z</kbd> 撤销 · <kbd>Shift + Z</kbd> 重做<br><kbd>⌘ / Ctrl + S</kbd> 保存本地草稿</p><p>工具栏的公式按钮支持 LaTeX。单行换行会在预览和公开文章中保留。</p><p>点击“提交文章”后请看发布状态。“已发布”表示公开网站已包含该版本；“查看最新文章”会打开带版本标记的页面，避免旧缓存。</p></div></dialog>
 </body>
 </html>

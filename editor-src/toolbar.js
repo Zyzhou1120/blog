@@ -44,9 +44,9 @@ export function setupToolbar({ showMessage }) {
   }
 
   function command(name) {
-    if (!input.value) return showMessage('请先选择或新建文章。')
+    if (!$('filename').textContent) return showMessage('请先选择或新建文章。')
     history[position] = snapshot()
-    const value = applyMarkdownCommand(input.value, input.selectionStart, input.selectionEnd, name)
+    const value = applyMarkdownCommand(input.value, input.selectionStart, input.selectionEnd, name, true)
     if (!value) return showMessage('请把光标移到下方正文中，再使用格式按钮。')
     apply(value)
   }
