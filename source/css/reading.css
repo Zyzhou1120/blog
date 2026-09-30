@@ -94,3 +94,16 @@
 .comment-reply-hint { background: #eef7f4; border-radius: 6px; padding: 8px 12px; font-size: 13px; }
 .comment-more, .comment-refresh { margin-top: 18px; margin-right: 10px; }
 @media (max-width: 600px) { .article-interactions { margin-top: 30px; } .comment-meta time { width: 100%; } }
+
+.blog-search { display: flex; align-items: end; gap: 10px; padding: 20px 24px; background: #fff; border-radius: 8px; box-shadow: 0 3px 12px #24374409; }
+.blog-search label { flex: 1; min-width: 0; display: grid; gap: 8px; color: #53636d; font-size: 13px; }
+.blog-search input { width: 100%; min-width: 0; box-sizing: border-box; padding: 11px 14px; border: 1px solid #dce4e8; border-radius: 6px; font: inherit; font-size: 15px; color: #253840; background: #fbfcfd; outline: none; }
+.blog-search input:focus { border-color: #268679; }
+.blog-search button { height: 44px; padding: 0 18px; background: #176d62; color: #fff; border: 0; border-radius: 6px; cursor: pointer; font: inherit; }
+.blog-search button[type=button] { background: #edf4f2; color: #176d62; }
+.search-summary { color: #78858e; margin: 12px 4px 18px; font-size: 13px; }
+.search-empty { padding: 38px 24px; color: #78858e; text-align: center; }
+#page.search-page { background: transparent; box-shadow: none; padding: 0; }
+.search-page .page-title { margin: 0 0 24px; }
+.search-results .blog-post-card { margin-bottom: 20px; }
+@media (max-width: 600px) { .blog-search { padding: 16px; gap: 8px; flex-wrap: wrap; } .blog-search label { flex-basis: 100%; } .blog-search button { flex: 1; } }

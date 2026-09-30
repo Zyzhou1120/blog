@@ -2,6 +2,7 @@ import DOMPurify from 'dompurify'
 import { marked } from 'marked'
 import { parse as parseYaml } from 'yaml'
 import { splitPost, joinPost, filenameForTitle } from '../shared/post.mjs'
+import catalog from '../shared/catalog.cjs'
 import mathExtension from '../shared/math.cjs'
 import { createPublicationTracker } from './publication.js'
 import { setupToolbar } from './toolbar.js'
@@ -199,6 +200,7 @@ function setSource(text, preserveMetadata = false) {
     title: String(next.meta.title || ''),
     categories: categoryPaths(next.meta.categories).map((path) => path.join(' / ')).join('、'),
     date: String(next.meta.date || '').slice(0, 10),
+    priority: String(catalog.priority(next.meta.priority)),
   }
   for (const [key, value] of Object.entries(initialFields)) $('post-' + key).value = value
   $('markdown').value = next.body
@@ -210,6 +212,8 @@ function currentSource() {
     const value = $('post-' + key).value.trim()
     if (value !== initialFields[key]) meta[key] = value
   }
+  const priority = $('post-priority').value
+  if (priority !== initialFields.priority) meta.priority = Number(priority)
   const categories = $('post-categories').value.trim()
   if (categories !== initialFields.categories) {
     const paths = categories.split(/[、,，]/).map((path) => path.split('/').map((part) => part.trim()).filter(Boolean)).filter((path) => path.length)
@@ -454,6 +458,7 @@ function setView(view) {
 
 async function publish() {
   if (!filename) return showMessage('请先选择或新建文章。', true)
+  if (!/^(?:[0-9]|10)$/.test($('post-priority').value)) return showMessage('重要级别必须为 0～10 的整数。', true)
   try { filenameForTitle($('post-title').value) } catch (error) { $('post-title').focus(); return showMessage(error.message, true) }
   if (liveEndpoint) return publishLive()
   if (!unsaved()) {
@@ -656,7 +661,7 @@ function contentChanged() {
   saveTimer = setTimeout(storeDraft, 350)
 }
 $('markdown').addEventListener('input', contentChanged)
-for (const key of ['title', 'categories', 'date']) $('post-' + key).addEventListener('input', contentChanged)
+for (const key of ['title', 'categories', 'date', 'priority']) $('post-' + key).addEventListener('input', contentChanged)
 
 $('post-search').addEventListener('input', renderPosts)
 

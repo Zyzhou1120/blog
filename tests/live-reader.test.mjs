@@ -133,3 +133,53 @@ $$f(x) = \max(0, x) = \begin{cases} 0 & \text{if } x < 0 \\ x & \text{if } x \ge
     assert.match(page.window.document.querySelector('#reader-heading').textContent, /浏览量.*25/)
   } finally { page.close() }
 })
+
+async function catalogFixture({ offline = false, searchPage = false } = {}) {
+  const make = (name, title, priority, date, body) => ({ name, sha: name, updated: date, text: `---\ntitle: ${title}\npriority: ${priority}\ndate: ${date}\ncategories: 深度学习\n---\n${body}` })
+  let posts = [make('older.md', '入门', 0, '2026-09-28', '线性函数'), make('newer.md', '进阶', 0, '2026-09-30', '矩阵'), make('important.md', '重点', 9, '2026-09-29', '矩阵与向量')]
+  const dom = new JSDOM(searchPage ? '<div id="page"><div id="blog-search-page"></div></div>' : '<div id="recent-posts"><div class="recent-post-items"></div></div>', { url: `https://zyzhou1120.github.io/blog/${searchPage ? 'search/?q=矩阵' : ''}`, runScripts: 'outside-only', pretendToBeVisual: true })
+  const { window } = dom
+  window.TextEncoder = TextEncoder; window.AbortSignal = AbortSignal
+  Object.defineProperty(window.document, 'currentScript', { value: { src: 'https://zyzhou1120.github.io/blog/js/live.js' } })
+  let socket
+  window.WebSocket = class { static OPEN = 1; static CONNECTING = 0; constructor() { this.readyState = 1; socket = this } close() {} send() {} }
+  window.fetch = async url => {
+    url = String(url)
+    if (url.includes('blog-catalog.json')) return { ok: true, json: async () => ({ posts }) }
+    if (offline) throw new Error('Offline')
+    return { ok: true, json: async () => url.endsWith('/posts') ? posts.map(({ name, sha }) => ({ name, sha })) : posts.find(p => url.endsWith(p.name)) }
+  }
+  window.eval(script)
+  await until(() => window.document.querySelectorAll('.article-title').length === (searchPage ? 2 : 3))
+  return { window, update() { posts[0] = { ...make('older.md', '入门', 10, '2026-09-28', '线性函数'), sha: 'changed' }; socket.onmessage({ data: '{}' }) }, close() { window.close() } }
+}
+
+test('home and search use the same ordering and react to changed importance', async () => {
+  const f = await catalogFixture()
+  const doc = f.window.document
+  const titles = () => [...doc.querySelectorAll('.article-title')].map(n => n.textContent)
+  try {
+    assert.deepEqual(titles(), ['重点', '入门', '进阶'])
+    const input = doc.querySelector('[name=q]')
+    input.value = '矩阵'
+    doc.querySelector('.blog-search').dispatchEvent(new f.window.Event('submit', { cancelable: true }))
+    assert.deepEqual(titles(), ['重点', '进阶'])
+    assert.match(f.window.location.search, /q=/)
+    input.value = '<script>'
+    doc.querySelector('.blog-search').dispatchEvent(new f.window.Event('submit', { cancelable: true }))
+    assert.equal(doc.querySelectorAll('.article-title').length, 0)
+    assert.match(doc.querySelector('.search-empty').textContent, /没有找到/)
+    doc.querySelector('.blog-search button[type=button]').click()
+    f.update()
+    await until(() => titles()[0] === '入门')
+    assert.equal(doc.querySelector('#post-priority'), null)
+  } finally { f.close() }
+})
+
+test('search page restores its query and searches the static catalog when live service is offline', async () => {
+  const f = await catalogFixture({ offline: true, searchPage: true })
+  try {
+    assert.equal(f.window.document.querySelector('[name=q]').value, '矩阵')
+    assert.deepEqual([...f.window.document.querySelectorAll('.article-title')].map(n => n.textContent), ['重点', '进阶'])
+  } finally { f.close() }
+})

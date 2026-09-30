@@ -7,6 +7,8 @@ import { liveEndpoint, liveRequest, liveUrl } from './live-api.js'
 import { categoryPaths, categoryUrl, inCategory, renderCategories } from './categories.js'
 import { showArticleViews } from './views.js'
 import { mountInteractions } from './interactions.js'
+import catalog from '../shared/catalog.cjs'
+import { setupSearch } from './search.js'
 
 marked.use(mathExtension())
 marked.setOptions({ breaks: true })
@@ -18,7 +20,7 @@ function content(post) {
   const match = post.text.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/)
   let meta = {}
   try { meta = match ? parse(match[1], { maxAliasCount: 20 }) || {} : {} } catch { /* Still display a readable article. */ }
-  return { ...post, title: String(meta.title || post.name.replace(/\.md$/, '')), date: String(meta.date || '').slice(0, 10), description: String(meta.description || ''), updatedDate: String(meta.updated || post.updated || meta.date || ''), categoryPaths: categoryPaths(meta.categories), body: match ? post.text.slice(match[0].length) : post.text }
+  return { ...post, title: String(meta.title || post.name.replace(/\.md$/, '')), date: String(meta.date || '').slice(0, 10), publishedAt: String(meta.date || ''), priority: catalog.priority(meta.priority), description: String(meta.description || ''), updatedDate: String(meta.updated || post.updated || meta.date || ''), categoryPaths: categoryPaths(meta.categories), body: match ? post.text.slice(match[0].length) : post.text }
 }
 function element(tag, className, text) {
   const node = document.createElement(tag)
@@ -149,6 +151,15 @@ async function start() {
     homeFeed.classList.add('post-cards')
     homeFeed.replaceChildren(...cards)
   }
+  const searchHost = document.getElementById('blog-search-page')
+  const searchControls = setupSearch({ host: searchHost || homeFeed, root, articleCard, searchPage: Boolean(searchHost) })
+  let receivedLiveCatalog = false
+  if (searchControls) {
+    void fetch(new URL('blog-catalog.json', root), { cache: 'no-store' })
+      .then(response => { if (!response.ok) throw new Error('Catalog unavailable'); return response.json() })
+      .then(data => { if (!receivedLiveCatalog && Array.isArray(data.posts)) searchControls.setPosts(data.posts.map(content)) })
+      .catch(() => searchControls.error())
+  }
   if (!liveEndpoint) {
     if (reader) reader.textContent = '实时阅读服务尚未启用，请从首页打开文章。'
     return
@@ -181,7 +192,9 @@ async function start() {
         if (cache.get(item.name)?.sha !== item.sha) cache.set(item.name, content(await liveRequest(`/posts/${encodeURIComponent(item.name)}`)))
         posts.push(cache.get(item.name))
       }
-      posts.sort((a, b) => b.date.localeCompare(a.date) || b.name.localeCompare(a.name))
+      posts.sort(catalog.comparePosts)
+      receivedLiveCatalog = true
+      searchControls?.setPosts(posts)
       renderCategories(posts, root, element)
       let categoryFeed
       if (category && categoryPath.length) {
@@ -203,7 +216,7 @@ async function start() {
         return item
       }))
       const feed = categoryFeed || (home ? document.querySelector('#recent-posts .recent-post-items') : archive ? document.querySelector('#archive .article-sort') : null)
-      if (feed) {
+      if (feed && !(home && searchControls)) {
         const selected = categoryFeed ? posts.filter((post) => inCategory(post, categoryPath)) : archive ? posts.filter((post) => {
           const parts = location.pathname.slice(`${root.pathname}archives/`.length).split('/').filter(Boolean)
           return !parts.length || post.date.startsWith(parts.join('-'))

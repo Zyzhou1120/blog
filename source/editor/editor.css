@@ -851,3 +851,8 @@ body.focus-mode .markdown-toolbar { flex: none; }
 .managed-comment-body { white-space: pre-wrap; overflow-wrap: anywhere; }
 .managed-reply { display: flex; gap: 12px; align-items: start; margin-top: 12px; }
 .managed-reply textarea { min-height: 70px; flex: 1; min-width: 0; padding: 10px; border: 1px solid #dce4e7; border-radius: 6px; font: inherit; }
+
+.post-fields .post-priority-field { flex: 0 0 140px; }
+.post-fields select { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #dce5e8; border-radius: 6px; font: inherit; font-size: 14px; background: #fff; color: #253840; }
+.post-fields select:focus { outline: 2px solid #258474; outline-offset: 1px; }
+@media (max-width: 1100px) { .post-fields { flex-wrap: wrap; } .post-fields .post-title-field { flex-basis: 40%; } }

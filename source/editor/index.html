@@ -10,8 +10,8 @@ layout: false
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.github.com https://zyzhou-blog-live.zyzhou1120-blog.workers.dev; img-src 'self' data: https:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>文章编辑 | 舟遥的博客</title>
   <link rel="stylesheet" href="../vendor/katex/katex.min.css">
-  <link rel="stylesheet" href="editor.css?v=11">
-  <script src="editor.js?v=16" defer></script>
+  <link rel="stylesheet" href="editor.css?v=12">
+  <script src="editor.js?v=17" defer></script>
 </head>
 <body data-view="edit" data-layout="split">
   <div id="connection-view" class="connection-view" role="status">
@@ -51,6 +51,7 @@ layout: false
         <div class="post-fields">
           <label class="post-title-field">文章标题<input id="post-title" type="text" placeholder="填写文章标题" maxlength="160" autocomplete="off"><small id="filename-hint">文件名随标题自动更新</small></label>
           <label>分类<input id="post-categories" type="text" placeholder="如：深度学习" autocomplete="off"><small>子分类用 /，多个分类用顿号分隔</small></label>
+          <label class="post-priority-field">重要级别<select id="post-priority" aria-label="重要级别"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select><small>0～10，数字越大越靠前</small></label>
           <label class="post-date-field">发布日期<input id="post-date" type="date"></label>
         </div>
         <div id="conflict-notice" class="draft-notice conflict-notice" hidden><span>远程文章已有新修改，你的草稿已保存在本地。</span><button id="reload-conflict" type="button">载入最新版本</button></div>

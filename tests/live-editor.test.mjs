@@ -352,3 +352,23 @@ test('editor comment management can delete, restore and publish a verified owner
     assert.equal(JSON.parse(request.body).parent, 1)
   } finally { f.close() }
 })
+
+test('owner importance defaults to zero, autosaves as metadata and publishes without changing the body', async () => {
+  const f = await fixture()
+  const doc = f.window.document
+  try {
+    const select = doc.getElementById('post-priority')
+    assert.equal(select.value, '0')
+    assert.equal(select.querySelectorAll('option').length, 11)
+    const body = doc.getElementById('markdown').value
+    select.value = '8'
+    select.dispatchEvent(new f.window.Event('input', { bubbles: true }))
+    doc.getElementById('publish').click()
+    await until(() => !doc.getElementById('publish').disabled)
+    const saved = f.requests.find(r => r.method === 'PUT')
+    const post = splitPost(JSON.parse(saved.body).text)
+    assert.equal(post.meta.priority, 8)
+    assert.equal(post.body, body)
+    assert.equal(doc.getElementById('post-priority').value, '8')
+  } finally { f.close() }
+})

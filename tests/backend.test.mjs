@@ -341,3 +341,17 @@ test('seed ranges are persistent; likes allow repeat clicks; public comments, ow
     assert.equal((await (await f.request('/manage-comments')).json()).items[0].name, renamed.name)
   } finally { await f.close() }
 })
+
+test('only the owner may update importance and the backend rejects values outside integer 0–10', async () => {
+  const f = await fixture()
+  try {
+    await f.request('/sync', { method: 'POST' })
+    const post = await (await f.request('/posts/welcome.md')).json()
+    const send = (priority, token = 'owner-token') => f.request('/posts/welcome.md', { method: 'PUT', token, body: { sha: post.sha, text: `---\ntitle: 欢迎\npriority: ${priority}\n---\n正文` } })
+    assert.equal((await send(10, '')).status, 401)
+    assert.equal((await send(10, 'stranger-token')).status, 403)
+    for (const invalid of [-1, 11, 2.5, '"10"']) assert.equal((await send(invalid)).status, 400)
+    assert.equal((await send(10)).status, 200)
+    assert.match((await (await f.request('/posts/welcome.md', { token: '' })).json()).text, /priority: 10/)
+  } finally { await f.close() }
+})

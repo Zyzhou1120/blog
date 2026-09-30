@@ -160,6 +160,7 @@ export class Blog extends DurableObject {
         let parsed
         try { parsed = splitPost(data.text) } catch { return json({ message: '文章信息格式无效，请检查标题和分类。' }, 400) }
         if (typeof parsed.meta.title !== 'string' || !parsed.meta.title.trim()) return json({ message: '文章缺少标题。请刷新编辑页，在上方填写标题后再发布，正文草稿已保留。' }, 400)
+        if (parsed.meta.priority !== undefined && (!Number.isInteger(parsed.meta.priority) || parsed.meta.priority < 0 || parsed.meta.priority > 10)) return json({ message: '重要级别必须为 0～10 的整数。' }, 400)
         if (data.rename === true) {
           const result = await publishWithTitle(this.env, token, github, name, data)
           const saved = this.ctx.storage.transactionSync(() => {
