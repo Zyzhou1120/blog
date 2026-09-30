@@ -1,12 +1,3 @@
----
-title: 深度学习引入
-date: 2026-09-29
-categories:
-  - 深度学习
-tags:
-  - 开始
----
-
 可以先引入一个问题：**Q: 如果根据许多已知数据想预测未知数据怎么办？**
 
 #### 简单独立一次函数
@@ -134,6 +125,43 @@ $$
 此时，$x$ 就是这套房子的各项指标向量。比如 $x_1$ 是房屋面积（120平米），$x_2$ 是卧室数量（3间），$x_3$ 是距离地铁站的距离（500米），$x_4$ 是建成年份（2015年）。
 
 - **regression**：
-    回归任务，输出的数值即为答案
+    回归任务，即预测一个或多个连续的数值型输出，像预测房价这个例子，输出的数值即为答案。
 - **classification**：
-    输出的是一个数字，代表语气特征。但是我们需要的是一个选项，一个 **label** ，无法对应，需要用到 **softmax**
+    即题目给定若干选项，需要机器进行挑选。刚才输出的是一个数字，代表语义特征，但是我们需要的是一个选项，一个 **label** ，是无法对应的，所以需要略微修改一下方法。
+
+
+---
+
+#### classification
+
+#####  classification 如何表示
+
+首先，需要考虑一个问题，即如何用数字刻画每一个选项。有的同学可能会想，能否用数值，比如 $1,2,3,4$ 来表示四个选项 $A,B,C,D$ 。但是这样就隐含了一个问题，那就是在机器的眼中，$A,B$ 之间的语义距离 $2-1$ 是小于 $A,D$ 之间的语义距离 $4-1$ 的。但是显然在真实场景中，四个选项不一定相互有所关联。
+
+那么我们考虑用 **one-hot vector**，如果是三个选项，那么就是：
+
+$$\begin{matrix} & \text{Class 1} & & \text{Class 2} & & \text{Class 3} \\ \widehat{\boldsymbol{y}} = & \begin{bmatrix} 1 \\ 0 \\ 0 \end{bmatrix} & \text{or} & \begin{bmatrix} 0 \\ 1 \\ 0 \end{bmatrix} & \text{or} & \begin{bmatrix} 0 \\ 0 \\ 1 \end{bmatrix} \end{matrix}$$
+
+容易发现这样的两两距离就是相同的了。
+
+接下来，我们把刚才的回归式子：
+
+$$y = b + c^T \sigma(\boldsymbol{b} + W\boldsymbol{x})$$
+
+可以改为分类的：
+
+$$\boldsymbol{y} = \boldsymbol{b}' + W' \sigma(\boldsymbol{b} + W\boldsymbol{x})$$
+
+如果隐含函数代成 **ReLU** 并展开，那么就是：
+
+$$y_k = b'_k + \sum_{i=1}^{m} w'_{ki} \operatorname{ReLU}\left(b_i + \sum_{j=1}^{d} w_{ij} x_j\right)$$
+
+$y_k$ 是输出向量的第 $k$ 个位置的数。
+
+##### softmax 与 loss 函数
+
+接下来对 $y_i$ 做 **softmax** （姑且可以认为是因为 $y_i$ 每个位置可以是任意值，但是 $\boldsymbol{y}$ 只能是 $0/1$ 所以要做 **softmax**）
+
+$$y'_i = \operatorname{softmax}(\boldsymbol{y})_i = \frac{e^{y_i}}{\sum_{j=1}^{K} e^{y_j}}$$
+
+衡量
