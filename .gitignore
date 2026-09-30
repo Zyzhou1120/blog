@@ -13,3 +13,4 @@ _multiconfig.yml
 .dev.vars*
 .env*
 source/js/live.js
+work/

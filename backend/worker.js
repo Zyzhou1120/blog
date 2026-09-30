@@ -1,4 +1,5 @@
 import { DurableObject } from 'cloudflare:workers'
+import { uploadImage } from './images.js'
 
 const MAX_BYTES = 512 * 1024
 const json = (data, status = 200) => Response.json(data, { status, headers: { 'Cache-Control': 'no-store' } })
@@ -31,13 +32,15 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors })
     try {
       if (!['GET', 'PUT', 'POST'].includes(request.method)) throw fail('Method not allowed', 405)
+      const token = request.headers.get('Authorization')?.match(/^Bearer (\S+)$/)?.[1]
       if (request.method !== 'GET') {
-        const token = request.headers.get('Authorization')?.match(/^Bearer (\S+)$/)?.[1]
         if (!token) throw fail('请先登录。', 401)
         const account = await github(env, token, '/user')
         if (account.login?.toLowerCase() !== env.OWNER.toLowerCase()) throw fail('仅博主可以发布文章。', 403)
       }
-      const response = await env.BLOG.getByName('blog').fetch(request)
+      const response = request.method === 'POST' && new URL(request.url).pathname === '/images'
+        ? await uploadImage(request, env, token, github)
+        : await env.BLOG.getByName('blog').fetch(request)
       if (response.status === 101) return response
       return new Response(response.body, { status: response.status, headers: { ...Object.fromEntries(response.headers), ...cors } })
     } catch (error) {

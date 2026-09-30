@@ -5,6 +5,7 @@ import markedKatex from 'marked-katex-extension'
 import { createPublicationTracker } from './publication.js'
 import { setupToolbar } from './toolbar.js'
 import { liveEndpoint, liveRequest, liveUrl } from './live-api.js'
+import { setupImages } from './images.js'
 import {
   createIcons, SquarePen, KeyRound, ArrowRight, Menu, FilePlus2,
   Upload, LogOut, RefreshCw, ExternalLink, FileText, X,
@@ -35,6 +36,13 @@ marked.use(markedKatex({ throwOnError: false, trust: false }))
 marked.setOptions({ breaks: true })
 createIcons({ icons })
 const controls = setupToolbar({ showMessage })
+setupImages({
+  input: $('markdown'), button: $('upload-image'), getDocument: () => token ? filename : '', showMessage,
+  upload: async (content) => {
+    if (!liveEndpoint) throw new Error('请先启用实时发布服务。')
+    return liveRequest('/images', { method: 'POST', body: JSON.stringify({ content }), signal: AbortSignal.timeout(60000) }, token)
+  },
+})
 const siteRoot = new URL('../', location.href)
 const publication = createPublicationTracker({
   manifestUrl: new URL('publish-status.json', siteRoot).href,

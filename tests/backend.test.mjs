@@ -11,6 +11,7 @@ const blob = (text) => createHash('sha1').update(`blob ${Buffer.byteLength(text)
 async function fixture() {
   const text = '---\ntitle: 欢迎\n---\n2222\n3333\n'
   const files = new Map([['welcome.md', { text, sha: blob(text) }]])
+  const images = new Map()
   let failPut = false
   let writes = 0
   const mf = new Miniflare(convertV4MiniflareOptions({
@@ -21,6 +22,17 @@ async function fixture() {
       const url = new URL(request.url)
       const reply = (body, status = 200) => Response.json(body, { status })
       if (url.pathname === '/user') return reply({ login: request.headers.get('Authorization') === 'Bearer owner-token' ? 'Zyzhou1120' : 'someone-else' })
+      if (url.pathname.includes('/source/images/uploads/')) {
+        const path = url.pathname
+        if (request.method === 'PUT') {
+          writes++
+          if (failPut) return reply({}, 500)
+          const data = await request.json()
+          images.set(path, data.content)
+          return reply({ content: { sha: 'image-sha' } })
+        }
+        return images.has(path) ? reply({ sha: 'image-sha' }) : reply({}, 404)
+      }
       if (url.pathname.endsWith('/source/_posts')) return reply([...files].map(([name, file]) => ({ type: 'file', name, sha: file.sha })))
       const name = decodeURIComponent(url.pathname.split('/').at(-1))
       const file = files.get(name)
@@ -38,7 +50,7 @@ async function fixture() {
   }))
   await mf.ready
   const request = (path, { token = 'owner-token', method = 'GET', body, headers } = {}) => mf.dispatchFetch(`https://live.test${path}`, { method, headers: { Origin: origin, ...(token ? { Authorization: `Bearer ${token}` } : {}), ...headers }, ...(body ? { body: JSON.stringify(body) } : {}) })
-  return { mf, request, files, failPut() { failPut = true }, get writes() { return writes }, close: () => mf.dispose() }
+  return { mf, request, files, images, failPut() { failPut = true }, get writes() { return writes }, close: () => mf.dispose() }
 }
 
 test('owner publishes to GitHub and SQLite; an already-open visitor receives the new version', async () => {
@@ -62,6 +74,36 @@ test('owner publishes to GitHub and SQLite; an already-open visitor receives the
     assert.equal(conflict.status, 409)
     assert.equal(f.files.get('welcome.md').text, text)
     response.webSocket.close()
+  } finally { await f.close() }
+})
+
+test('image uploads require owner authentication, preserve binary bytes, and deduplicate repeats', async () => {
+  const f = await fixture()
+  const content = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a0X8AAAAASUVORK5CYII='
+  try {
+    assert.equal((await f.request('/images', { method: 'POST', token: '', body: { content } })).status, 401)
+    assert.equal((await f.request('/images', { method: 'POST', token: 'other', body: { content } })).status, 403)
+    const result = await f.request('/images', { method: 'POST', body: { content } })
+    assert.equal(result.status, 200)
+    const image = await result.json()
+    assert.match(image.url, /^https:\/\/raw.githubusercontent.com\/Zyzhou1120\/blog\/main\/source\/images\/uploads\/[a-f0-9]{64}\.png$/)
+    assert.equal([...f.images.values()][0], content)
+    assert.equal((await f.request('/images', { method: 'POST', body: { content } })).status, 200)
+    assert.equal(f.writes, 1)
+    assert.equal((await f.request('/images', { method: 'POST', body: { content: Buffer.from('<svg onload="alert(1)"></svg>').toString('base64') } })).status, 400)
+    assert.equal((await f.request('/images', { method: 'POST', body: { content: 'not-base64' } })).status, 400)
+    assert.equal((await f.request('/images', { method: 'POST', body: { content: Buffer.alloc(2 * 1024 * 1024 + 1).toString('base64') } })).status, 413)
+  } finally { await f.close() }
+})
+
+test('a failed image backup does not return a successful URL', async () => {
+  const f = await fixture()
+  try {
+    f.failPut()
+    const result = await f.request('/images', { method: 'POST', body: { content: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a0X8AAAAASUVORK5CYII=' } })
+    assert.equal(result.status, 500)
+    assert.equal((await result.json()).url, undefined)
+    assert.equal(f.images.size, 0)
   } finally { await f.close() }
 })
 
