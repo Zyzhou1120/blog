@@ -269,3 +269,19 @@ test('preview keeps ordinary line breaks and renders inserted formulas and table
     assert.equal(doc.querySelectorAll('#preview th').length, 2)
   } finally { editor.close() }
 })
+
+test('preview renders formulas next to Chinese punctuation and LaTeX parentheses', async () => {
+  const editor = createEditor()
+  try {
+    await logIn(editor.window)
+    const doc = editor.window.document
+    const input = doc.getElementById('markdown')
+    input.value = String.raw`---
+title: 公式
+---
+平方误差 $x^2$（即 MSE），推广到第 \(\ell\) 层。`
+    input.dispatchEvent(new editor.window.Event('input', { bubbles: true }))
+    assert.equal(doc.querySelectorAll('#preview .katex').length, 2)
+    assert.equal(doc.querySelectorAll('#preview .katex-error').length, 0)
+  } finally { editor.close() }
+})

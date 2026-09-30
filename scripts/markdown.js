@@ -1,7 +1,7 @@
-const markedKatex = require('marked-katex-extension')
+const mathExtension = require('../shared/math.cjs')
 
 hexo.extend.filter.register('marked:extensions', function (extensions) {
-  extensions.push(...markedKatex({ throwOnError: false, trust: false }).extensions)
+  extensions.push(...mathExtension().extensions)
 })
 
 hexo.extend.injector.register('head_end', function () {

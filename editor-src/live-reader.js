@@ -1,10 +1,10 @@
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
 import { parse } from 'yaml'
-import markedKatex from 'marked-katex-extension'
+import mathExtension from '../shared/math.cjs'
 import { liveEndpoint, liveRequest, liveUrl } from './live-api.js'
 
-marked.use(markedKatex({ throwOnError: false, trust: false }))
+marked.use(mathExtension())
 marked.setOptions({ breaks: true })
 const script = document.currentScript?.src
 const root = script ? new URL('../', script) : new URL('/blog/', location.href)

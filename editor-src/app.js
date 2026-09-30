@@ -1,7 +1,7 @@
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
 import { parse as parseYaml } from 'yaml'
-import markedKatex from 'marked-katex-extension'
+import mathExtension from '../shared/math.cjs'
 import { createPublicationTracker } from './publication.js'
 import { setupToolbar } from './toolbar.js'
 import { liveEndpoint, liveRequest, liveUrl } from './live-api.js'
@@ -32,7 +32,7 @@ let saveTimer = null
 let activeView = 'edit'
 let liveCheck = 0
 
-marked.use(markedKatex({ throwOnError: false, trust: false }))
+marked.use(mathExtension())
 marked.setOptions({ breaks: true })
 createIcons({ icons })
 const controls = setupToolbar({ showMessage })

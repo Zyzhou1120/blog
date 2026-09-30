@@ -1,0 +1,36 @@
+const markedKatex = require('marked-katex-extension')
+const katex = require('katex')
+
+// Shared by the editor, live reader, and Hexo so the same source renders alike.
+module.exports = function mathExtension() {
+  const options = { throwOnError: false, trust: false, nonStandard: true }
+  const renderer = (token) => katex.renderToString(token.text, { ...options, displayMode: token.displayMode })
+  return {
+    extensions: [
+      ...markedKatex(options).extensions,
+      {
+        name: 'latexBracketBlock',
+        level: 'block',
+        start(src) { return src.match(/(?:^|\n)(?= {0,3}\\\[)/)?.index },
+        tokenizer(src) {
+          const match = src.match(/^ {0,3}\\\[([\s\S]*?)\\\][ \t]*(?:\n|$)/)
+          if (match) return { type: 'latexBracketBlock', raw: match[0], text: match[1].trim(), displayMode: true }
+        },
+        renderer,
+      },
+      {
+        name: 'latexBracketInline',
+        level: 'inline',
+        start(src) {
+          const index = src.search(/\\(?:\(|\[)/)
+          return index === -1 ? undefined : index
+        },
+        tokenizer(src) {
+          const match = src.match(/^\\\(([^\n]*?)\\\)/) || src.match(/^\\\[([^\n]*?)\\\]/)
+          if (match) return { type: 'latexBracketInline', raw: match[0], text: match[1].trim(), displayMode: src.startsWith('\\[') }
+        },
+        renderer,
+      },
+    ],
+  }
+}

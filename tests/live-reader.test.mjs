@@ -55,3 +55,23 @@ test('new posts can be read and listed before a static page has been built', asy
     assert.equal(home.window.document.querySelector('.article-title').href, 'https://zyzhou1120.github.io/blog/read/?post=welcome.md')
   } finally { page.close(); home.close() }
 })
+
+test('article formulas next to Chinese punctuation and LaTeX parentheses render on the live reader', async () => {
+  const page = fixture({ generic: true })
+  try {
+    await until(() => page.window.document.getElementById('blog-publication'))
+    page.update(String.raw`---
+title: 公式检查
+---
+对于给定的 $k,b$，平方误差 $\frac{1}{n}\sum (y_i - (kx_i+b))^2$（即 MSE）。
+
+把第一层的输出 \(\boldsymbol a^{(1)}\) 当作下一层的输入，推广到第 \(\ell\) 层。
+
+$$f(x) = \max(0, x) = \begin{cases} 0 & \text{if } x < 0 \\ x & \text{if } x \ge 0 \end{cases}$$
+`)
+    await until(() => page.window.document.querySelector('#live-reader h1')?.textContent === '公式检查')
+    const root = page.window.document.getElementById('live-reader')
+    assert.equal(root.querySelectorAll('.katex').length, 5)
+    assert.equal(root.querySelectorAll('.katex-error').length, 0)
+  } finally { page.close() }
+})
