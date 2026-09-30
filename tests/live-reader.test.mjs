@@ -66,7 +66,7 @@ test('a category lists moved articles immediately and removes them when moved aw
     page.update('---\ntitle: 深度学习引入\ncategories:\n  - 机器学习\n  - 深度学习\n---\n正文')
     await until(() => page.window.document.querySelector('.category-lists .article-title'))
     assert.equal(page.window.document.querySelector('.category-lists .article-title').textContent, '深度学习引入')
-    assert.ok(page.window.document.querySelector('.category-cards .recent-post-item'))
+    assert.ok(page.window.document.querySelector('.category-cards .blog-post-card'))
     assert.equal(page.window.document.querySelector('.category-cards .article-meta-wrap, .category-cards .content'), null)
     assert.equal(page.window.document.body.textContent.includes('已连接实时更新'), false)
     assert.equal(page.window.document.querySelector('#aside-cat-list ul .card-category-list-name').textContent, '深度学习')
@@ -77,15 +77,15 @@ test('a category lists moved articles immediately and removes them when moved aw
   } finally { page.close() }
 })
 
-test('homepage and generic reader retain visible category links after live rendering', async () => {
+test('homepage cards stay minimal while the reader retains its category links', async () => {
   const pages = [fixture({ home: true }), fixture({ generic: true })]
   try {
     await until(() => pages[0].window.document.querySelector('.article-title') && pages[1].window.document.querySelector('#blog-publication'))
     for (const page of pages) page.update('---\ntitle: 深度学习引入\ncategories: 深度学习\n---\n正文')
-    for (const page of pages) {
-      await until(() => page.window.document.querySelector('.article-meta__categories'))
-      assert.equal(page.window.document.querySelector('.article-meta__categories').textContent, '深度学习')
-    }
+    await until(() => pages[1].window.document.querySelector('.article-meta__categories'))
+    assert.equal(pages[1].window.document.querySelector('.article-meta__categories').textContent, '深度学习')
+    assert.equal(pages[0].window.document.querySelector('.blog-post-card .article-meta__categories'), null)
+    assert.ok(pages[0].window.document.querySelector('.blog-post-card .blog-read-more'))
   } finally { pages.forEach((page) => page.close()) }
 })
 

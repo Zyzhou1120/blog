@@ -25,7 +25,7 @@ function element(tag, className, text) {
 }
 function link(post, className) {
   const node = element('a', className, post.title)
-  node.href = liveUrl(post.name, root)
+  node.href = post.href || liveUrl(post.name, root)
   return node
 }
 function renderPost(post) {
@@ -85,12 +85,12 @@ function renderReaderHeading(post) {
   header.replaceChildren(title, meta)
 }
 
-function categoryCard(post) {
-  const card = element('article', 'recent-post-item')
-  const info = element('div', 'recent-post-info no-cover')
-  const title = element('h2')
+function articleCard(post) {
+  const card = element('article', 'blog-post-card')
+  const info = element('div', 'blog-post-info')
+  const title = element('h2', 'blog-post-title')
   title.append(link(post, 'article-title'))
-  const read = link(post, 'category-read-more')
+  const read = link(post, 'blog-read-more')
   read.textContent = '阅读全文 →'
   read.setAttribute('aria-label', `阅读：${post.title}`)
   info.append(title, read)
@@ -109,6 +109,13 @@ function appendCategories(target, post) {
 
 async function start() {
   if (document.getElementById('editor-view')) return
+  // Normalize the built homepage immediately, even if the live service is unavailable.
+  const homeFeed = document.querySelector('#recent-posts .recent-post-items')
+  if (homeFeed) {
+    const cards = [...homeFeed.querySelectorAll('.article-title')].map((a) => articleCard({ title: a.textContent, href: a.href }))
+    homeFeed.classList.add('post-cards')
+    homeFeed.replaceChildren(...cards)
+  }
   if (!liveEndpoint) {
     if (reader) reader.textContent = '实时阅读服务尚未启用，请从首页打开文章。'
     return
@@ -151,7 +158,7 @@ async function start() {
         const container = categoryFeed?.closest('#category, #page')
         container?.classList.add('category-page')
         categoryFeed?.classList.remove('article-sort')
-        categoryFeed?.classList.add('category-cards')
+        categoryFeed?.classList.add('category-cards', 'post-cards')
         document.title = `${categoryPath.join(' / ')} | 我的博客`
       }
       const recent = document.querySelector('.card-recent-post .aside-list')
@@ -169,10 +176,10 @@ async function start() {
           return !parts.length || post.date.startsWith(parts.join('-'))
         }) : posts
         feed.replaceChildren(...selected.map((post) => {
-          if (categoryFeed) return categoryCard(post)
-          const item = element('div', home ? 'recent-post-item' : 'article-sort-item')
-          const info = element('div', home ? 'recent-post-info no-cover' : 'article-sort-item-info')
-          info.append(link(post, home ? 'article-title' : 'article-sort-item-title'), element('div', 'article-meta-wrap', post.date), element('div', 'content', post.description || post.body.replace(/[#*`>]/g, '').slice(0, 150)))
+          if (categoryFeed || home) return articleCard(post)
+          const item = element('div', 'article-sort-item')
+          const info = element('div', 'article-sort-item-info')
+          info.append(link(post, 'article-sort-item-title'), element('div', 'article-meta-wrap', post.date), element('div', 'content', post.description || post.body.replace(/[#*`>]/g, '').slice(0, 150)))
           appendCategories(info.querySelector('.article-meta-wrap'), post)
           item.append(info)
           return item
