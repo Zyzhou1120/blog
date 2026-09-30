@@ -8,7 +8,7 @@ layout: false
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="no-referrer">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.github.com https://zyzhou-blog-live.zyzhou1120-blog.workers.dev; img-src 'self' data: https:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
-  <title>文章编辑 | 我的博客</title>
+  <title>文章编辑 | 舟遥的博客</title>
   <link rel="stylesheet" href="../vendor/katex/katex.min.css">
   <link rel="stylesheet" href="editor.css?v=11">
   <script src="editor.js?v=16" defer></script>
@@ -20,7 +20,7 @@ layout: false
     <div class="connection-actions"><button id="retry-connection" class="primary-button" type="button" hidden>重新连接</button><button id="reset-connection" class="quiet-button" type="button" hidden>使用其他令牌</button></div>
   </div>
   <div id="auth-view" class="auth-view" hidden>
-    <header class="auth-header"><a href="../" target="_blank" rel="noopener noreferrer">我的博客</a><span>文章编辑</span></header>
+    <header class="auth-header"><a href="../" target="_blank" rel="noopener noreferrer">舟遥的博客</a><span>文章编辑</span></header>
     <main class="auth-main">
       <div class="auth-heading"><span class="auth-icon"><i data-lucide="square-pen"></i></span><h1>开始写作</h1><p>Zyzhou1120 / blog</p></div>
       <form id="auth-form" class="auth-form">
@@ -37,7 +37,7 @@ layout: false
 
   <div id="editor-view" class="app-shell" hidden>
     <header class="topbar">
-      <div class="brand"><button id="sidebar-toggle" class="icon-button" type="button" aria-label="收起文章库" title="收起文章库" aria-controls="sidebar" aria-expanded="true"><i data-lucide="panel-left"></i></button><a href="../" class="brand-name" target="_blank" rel="noopener noreferrer">我的博客</a><span class="brand-divider"></span><span class="brand-section">写作</span></div>
+      <div class="brand"><button id="sidebar-toggle" class="icon-button" type="button" aria-label="收起文章库" title="收起文章库" aria-controls="sidebar" aria-expanded="true"><i data-lucide="panel-left"></i></button><a href="../" class="brand-name" target="_blank" rel="noopener noreferrer">舟遥的博客</a><span class="brand-divider"></span><span class="brand-section">写作</span></div>
       <div class="top-actions"><span id="save-state" class="save-state" role="status">选择文章后开始写作</span><button id="manage-comments" class="quiet-button" type="button">评论管理</button><button id="new-post" class="quiet-button" type="button"><i data-lucide="file-plus-2"></i><span>新文章</span></button><button id="publish" class="primary-button" type="button"><i data-lucide="upload"></i><span>提交文章</span></button><button id="logout" class="icon-button" type="button" aria-label="退出编辑" title="退出编辑"><i data-lucide="log-out"></i></button></div>
     </header>
     <div class="workbench">

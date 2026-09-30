@@ -56,7 +56,7 @@ function renderPost(post) {
     const title = document.querySelector('.post-title')
     if (title) title.textContent = post.title
   }
-  document.title = `${post.title} | 我的博客`
+  document.title = `${post.title} | 舟遥的博客`
   const meta = document.querySelector('#post-meta .meta-firstline')
   if (meta) {
     meta.textContent = `发表于 ${post.date} · 更新于 ${new Date(post.updated).toLocaleString('zh-CN')}`
@@ -192,7 +192,7 @@ async function start() {
         container?.classList.add('category-page')
         categoryFeed?.classList.remove('article-sort')
         categoryFeed?.classList.add('category-cards', 'post-cards')
-        document.title = `${categoryPath.join(' / ')} | 我的博客`
+        document.title = `${categoryPath.join(' / ')} | 舟遥的博客`
       }
       const recent = document.querySelector('.card-recent-post .aside-list')
       if (recent) recent.replaceChildren(...posts.slice(0, 5).map((post) => {
