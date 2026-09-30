@@ -7,6 +7,7 @@ import { createPublicationTracker } from './publication.js'
 import { setupToolbar } from './toolbar.js'
 import { liveEndpoint, liveRequest, liveUrl } from './live-api.js'
 import { setupImages } from './images.js'
+import { setupCommentManager } from './comment-manager.js'
 import { readSession, rememberSession, clearSession, shouldRememberSession } from './session.js'
 import { setupSidebar } from './sidebar.js'
 import { categoryPaths } from './categories.js'
@@ -43,6 +44,7 @@ marked.setOptions({ breaks: true })
 createIcons({ icons })
 const controls = setupToolbar({ showMessage })
 const sidebarControls = setupSidebar()
+setupCommentManager(() => token)
 setupImages({
   chooseImageFile: controls.chooseImageFile,
   input: $('markdown'), button: $('upload-image'), getDocument: () => token ? filename : '', showMessage,

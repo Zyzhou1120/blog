@@ -6,6 +6,7 @@ import mathExtension from '../shared/math.cjs'
 import { liveEndpoint, liveRequest, liveUrl } from './live-api.js'
 import { categoryPaths, categoryUrl, inCategory, renderCategories } from './categories.js'
 import { showArticleViews } from './views.js'
+import { mountInteractions } from './interactions.js'
 
 marked.use(mathExtension())
 marked.setOptions({ breaks: true })
@@ -33,6 +34,7 @@ function link(post, className) {
 function renderPost(post) {
   const target = reader || document.getElementById('article-container')
   if (!target) return
+  mountInteractions(post, document.getElementById('article-container') || target)
   const anchor = document.getElementById('blog-publication')
   if (!reader) {
     const meta = document.querySelector('#post-meta .meta-secondline') || document.querySelector('#post-meta') || document.querySelector('#post')

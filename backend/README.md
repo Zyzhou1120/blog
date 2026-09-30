@@ -38,3 +38,12 @@
 `pnpm test:editor` 包含真实 workerd/SQLite/WebSocket 本地运行测试及编辑器、阅读页集成测试。`pnpm exec wrangler deploy --dry-run --config backend/wrangler.jsonc` 检查上传包。
 
 若需回退，将 `realtime.config.json` 的 `endpoint` 改回空字符串并重新发布静态站点；所有已确认保存的文章都仍在 GitHub。不要删除 Durable Object 或执行破坏性迁移。
+
+## 点赞和评论
+
+- 每篇文章首次初始化时生成一次浏览基础数 10–25、点赞基础数 5–15（点赞小于浏览）。基础数单独记录在 `engagement`；浏览总数保留已有真实访问并加上基础数，不随刷新重新随机。博主可用 `POST /initialize-engagement` 为所有已有文章幂等初始化。
+- `GET /engagement/:name` 返回点赞和公开评论数；`POST /likes/:name` 接收每次点击生成的 `requestId`，允许同一访客反复点赞。同一网络请求重试不会重复增加，幂等记录保留一天。
+- `GET /comments/:name?before=<id>` 每页最多 50 条公开评论。`POST /comments/:name` 接收昵称、纯文本正文、可选父评论、随机访客标识和请求 ID，立即公开。正文最多 2000 字、昵称最多 30 字；游客同一来源 10 秒内最多一次。来源按日散列且不保存原始 IP。
+- 传入有效博主令牌的评论由服务端标记博主身份，客户端无法自行设置。评论只作为纯文本展示。
+- 编辑器的“评论管理”调用受博主身份保护的 `GET/POST /manage-comments`：浏览、回复、软删除和恢复。隐藏评论不会出现在公开接口中；回复保留，并以“已删除的评论”表示被删除的父评论。
+- 所有互动共用改名稳定的文章 ID。发布和文件备份继续存 GitHub；点赞、评论保存在现有 Durable Object SQLite 中。

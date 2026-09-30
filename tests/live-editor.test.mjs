@@ -23,12 +23,22 @@ async function fixture({ failure = false, holdImage = null, holdSave = null, ren
   window.sessionStorage.setItem('blog-editor:token', 'owner-token')
   if (renamed) window.sessionStorage.setItem('blog-editor:last-document', 'welcome.md')
   if (savedDraft) window.localStorage.setItem('blog-editor:draft:welcome.md', JSON.stringify({ text: savedDraft, sha: 'old-sha' }))
+  const comments = [{ id: 1, name: 'welcome.md', nickname: '读者', body: '文章很有帮助', hidden: 0, owner: 0, created: '2026-09-30T00:00:00Z' }]
   const requests = []
   window.fetch = async (url, options = {}) => {
     requests.push({ url, ...options })
     const reply = (data, status = 200) => ({ ok: status === 200, status, json: async () => data })
     if (url === 'https://api.github.com/user') return reply({ login: 'Zyzhou1120' })
     if (url === 'https://api.github.com/repos/Zyzhou1120/blog') return reply({ permissions: { push: true } })
+    if (url === 'https://live.test/manage-comments') {
+      if (options.method === 'POST') { const data = JSON.parse(options.body); comments.find(c => c.id === data.id).hidden = data.hidden ? 1 : 0; return reply({ ok: true }) }
+      return reply({ items: comments.map(c => ({ ...c })), next: null })
+    }
+    if (String(url).startsWith('https://live.test/comments/')) {
+      const data = JSON.parse(options.body)
+      comments.push({ ...data, id: 2, name: 'welcome.md', owner: 1, hidden: 0, created: '2026-09-30T00:01:00Z' })
+      return reply({ id: 2 })
+    }
     if (url === 'https://live.test/sync') return reply({ ok: true })
     if (url === 'https://live.test/posts') return reply([{ name: post.name, sha: post.sha }])
     if (url === 'https://live.test/images') {
@@ -317,5 +327,28 @@ test('choosing a file without a native fullscreen exit does not trap a later Esc
     doc.fullscreenElement = null
     doc.dispatchEvent(new f.window.Event('fullscreenchange'))
     assert.equal(doc.body.classList.contains('focus-mode'), false)
+  } finally { f.close() }
+})
+
+
+test('editor comment management can delete, restore and publish a verified owner reply', async () => {
+  const f = await fixture()
+  const doc = f.window.document
+  try {
+    doc.getElementById('comments-dialog').showModal = () => {}
+    doc.getElementById('manage-comments').click()
+    await until(() => doc.querySelector('.managed-comment'))
+    doc.querySelector('.managed-comment > button').click()
+    await until(() => doc.querySelector('.managed-comment > button').textContent === '恢复评论')
+    assert.match(doc.querySelector('.managed-comment').textContent, /已删除/)
+    doc.querySelector('.managed-comment > button').click()
+    await until(() => doc.querySelector('.managed-reply'))
+    doc.querySelector('.managed-reply textarea').value = '谢谢你的反馈'
+    doc.querySelector('.managed-reply').dispatchEvent(new f.window.Event('submit', { cancelable: true }))
+    await until(() => doc.querySelectorAll('.managed-comment').length === 2)
+    assert.match(doc.getElementById('managed-comments').textContent, /谢谢你的反馈/)
+    const request = f.requests.find(r => r.url.includes('/comments/') && r.method === 'POST')
+    assert.equal(request.headers.Authorization, 'Bearer owner-token')
+    assert.equal(JSON.parse(request.body).parent, 1)
   } finally { f.close() }
 })

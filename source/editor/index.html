@@ -10,8 +10,8 @@ layout: false
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.github.com https://zyzhou-blog-live.zyzhou1120-blog.workers.dev; img-src 'self' data: https:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>文章编辑 | 我的博客</title>
   <link rel="stylesheet" href="../vendor/katex/katex.min.css">
-  <link rel="stylesheet" href="editor.css?v=10">
-  <script src="editor.js?v=15" defer></script>
+  <link rel="stylesheet" href="editor.css?v=11">
+  <script src="editor.js?v=16" defer></script>
 </head>
 <body data-view="edit" data-layout="split">
   <div id="connection-view" class="connection-view" role="status">
@@ -38,7 +38,7 @@ layout: false
   <div id="editor-view" class="app-shell" hidden>
     <header class="topbar">
       <div class="brand"><button id="sidebar-toggle" class="icon-button" type="button" aria-label="收起文章库" title="收起文章库" aria-controls="sidebar" aria-expanded="true"><i data-lucide="panel-left"></i></button><a href="../" class="brand-name" target="_blank" rel="noopener noreferrer">我的博客</a><span class="brand-divider"></span><span class="brand-section">写作</span></div>
-      <div class="top-actions"><span id="save-state" class="save-state" role="status">选择文章后开始写作</span><button id="new-post" class="quiet-button" type="button"><i data-lucide="file-plus-2"></i><span>新文章</span></button><button id="publish" class="primary-button" type="button"><i data-lucide="upload"></i><span>提交文章</span></button><button id="logout" class="icon-button" type="button" aria-label="退出编辑" title="退出编辑"><i data-lucide="log-out"></i></button></div>
+      <div class="top-actions"><span id="save-state" class="save-state" role="status">选择文章后开始写作</span><button id="manage-comments" class="quiet-button" type="button">评论管理</button><button id="new-post" class="quiet-button" type="button"><i data-lucide="file-plus-2"></i><span>新文章</span></button><button id="publish" class="primary-button" type="button"><i data-lucide="upload"></i><span>提交文章</span></button><button id="logout" class="icon-button" type="button" aria-label="退出编辑" title="退出编辑"><i data-lucide="log-out"></i></button></div>
     </header>
     <div class="workbench">
       <aside id="sidebar" class="sidebar">
@@ -82,6 +82,7 @@ layout: false
   </div>
 
   <dialog id="new-dialog" class="new-dialog"><form id="new-form" method="dialog"><div class="dialog-head"><h2>新文章</h2><button id="close-dialog" class="icon-button" type="button" aria-label="关闭" title="关闭"><i data-lucide="x"></i></button></div><label for="new-title">标题</label><input id="new-title" type="text" maxlength="100" required placeholder="输入文章标题"><div class="dialog-actions"><button id="cancel-new" class="quiet-button" type="button">取消</button><button class="primary-button" type="submit">创建草稿</button></div></form></dialog>
+  <dialog id="comments-dialog" class="new-dialog comments-dialog"><div class="dialog-head"><h2>评论管理</h2><button id="close-comments" class="icon-button" type="button" aria-label="关闭评论管理">×</button></div><p>评论提交后直接公开。在这里回复、删除或恢复评论。</p><button id="refresh-comments" type="button" class="quiet-button">刷新评论</button><p id="comments-status" role="status"></p><div id="managed-comments"></div><button id="more-managed-comments" class="quiet-button" type="button" hidden>加载更多</button></dialog>
   <dialog id="help-dialog" class="new-dialog help-dialog"><div class="help-content"><div class="dialog-head"><h2>写作帮助</h2><button id="close-help" class="icon-button" type="button" aria-label="关闭帮助"><i data-lucide="x"></i></button></div><p>选中正文后点击工具栏，或在光标处插入格式。标题、分类和日期在上方单独填写，下方只编辑正文。发布时文件名随标题更新，旧链接仍可访问。</p><p>点击图片按钮选择本地图片，或直接在正文中粘贴截图。支持 PNG、JPG、WebP、GIF；静态图片超过 2 MB 会自动压缩，原文件最大 10 MB，GIF 最大 2 MB。上传后自动插入链接，提交文章后对外显示。</p><p><kbd>⌘ / Ctrl + B</kbd> 加粗 · <kbd>I</kbd> 斜体 · <kbd>K</kbd> 链接<br><kbd>⌘ / Ctrl + Z</kbd> 撤销 · <kbd>Shift + Z</kbd> 重做<br><kbd>⌘ / Ctrl + S</kbd> 保存本地草稿</p><p>工具栏的公式按钮支持 LaTeX。单行换行会在预览和公开文章中保留。</p><p>点击“提交文章”后请看发布状态。“已发布”表示公开网站已包含该版本；“查看最新文章”会打开带版本标记的页面，避免旧缓存。</p></div></dialog>
 </body>
 </html>

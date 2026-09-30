@@ -3,6 +3,7 @@ import { splitPost } from '../shared/post.mjs'
 import { publishWithTitle, readAliases } from './rename.js'
 import { uploadImage } from './images.js'
 import { initializeViews, articleViews } from './views.js'
+import { initializeEngagement, articleIdentity, engagementRoute, manageComments } from './engagement.js'
 
 const MAX_BYTES = 512 * 1024
 const json = (data, status = 200) => Response.json(data, { status, headers: { 'Cache-Control': 'no-store' } })
@@ -36,16 +37,23 @@ export default {
     try {
       if (!['GET', 'PUT', 'POST'].includes(request.method)) throw fail('Method not allowed', 405)
       const token = request.headers.get('Authorization')?.match(/^Bearer (\S+)$/)?.[1]
-      const viewName = new URL(request.url).pathname.startsWith('/views/') ? decodeURIComponent(new URL(request.url).pathname.slice(7)) : ''
-      const publicView = request.method === 'POST' && validName(viewName)
-      if (request.method !== 'GET' && !publicView) {
+      const path = new URL(request.url).pathname
+      const publicMutation = request.method === 'POST' && /^\/(views|likes|comments)\//.test(path) && validName(decodeURIComponent(path.split('/').slice(2).join('/')))
+      const admin = path === '/manage-comments' || path === '/initialize-engagement'
+      let owner = false
+      if (admin || (request.method !== 'GET' && !publicMutation) || (path.startsWith('/comments/') && request.method === 'POST' && token)) {
         if (!token) throw fail('请先登录。', 401)
         const account = await github(env, token, '/user')
-        if (account.login?.toLowerCase() !== env.OWNER.toLowerCase()) throw fail('仅博主可以发布文章。', 403)
+        if (account.login?.toLowerCase() !== env.OWNER.toLowerCase()) throw fail('仅博主可以执行此操作。', 403)
+        owner = true
       }
+      // Never trust a caller-supplied owner marker.
+      const forwarded = new Request(request)
+      forwarded.headers.delete('X-Blog-Owner')
+      if (owner) forwarded.headers.set('X-Blog-Owner', 'true')
       const response = request.method === 'POST' && new URL(request.url).pathname === '/images'
-        ? await uploadImage(request, env, token, github)
-        : await env.BLOG.getByName('blog').fetch(request)
+        ? await uploadImage(forwarded, env, token, github)
+        : await env.BLOG.getByName('blog').fetch(forwarded)
       if (response.status === 101) return response
       return new Response(response.body, { status: response.status, headers: { ...Object.fromEntries(response.headers), ...cors } })
     } catch (error) {
@@ -61,6 +69,7 @@ export class Blog extends DurableObject {
     this.sql.exec('CREATE TABLE IF NOT EXISTS posts (name TEXT PRIMARY KEY, sha TEXT NOT NULL, text TEXT NOT NULL, updated TEXT NOT NULL)')
     this.sql.exec('CREATE TABLE IF NOT EXISTS aliases (name TEXT PRIMARY KEY, target TEXT NOT NULL)')
     initializeViews(this.sql)
+    initializeEngagement(this.sql)
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping', 'pong'))
   }
 
@@ -91,6 +100,20 @@ export class Blog extends DurableObject {
       const [client, server] = Object.values(new WebSocketPair())
       this.ctx.acceptWebSocket(server)
       return new Response(null, { status: 101, webSocket: client })
+    }
+    if (url.pathname === '/manage-comments') return manageComments(this, request)
+    if (url.pathname === '/initialize-engagement' && request.method === 'POST') {
+      const items = this.ctx.storage.transactionSync(() => this.sql.exec('SELECT name FROM posts').toArray().map(({ name }) => {
+        const id = articleIdentity(this, name)
+        return { name, ...this.sql.exec('SELECT initial_views, initial_likes, likes FROM engagement WHERE id = ?', id).toArray()[0], views: this.sql.exec('SELECT count FROM view_totals WHERE id = ?', id).toArray()[0].count }
+      }))
+      return json({ items })
+    }
+    const interaction = url.pathname.match(/^\/(engagement|likes|comments)\/(.+)$/)
+    if (interaction && ['GET', 'POST'].includes(request.method)) {
+      const name = decodeURIComponent(interaction[2])
+      if (!validName(name)) return json({ message: '文件名无效。' }, 400)
+      return engagementRoute(this, request, name, interaction[1], request.headers.get('X-Blog-Owner') === 'true')
     }
     if (url.pathname === '/health') return json({ ok: true })
     if (url.pathname.startsWith('/views/') && ['GET', 'POST'].includes(request.method)) {

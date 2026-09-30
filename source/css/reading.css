@@ -68,3 +68,29 @@
   .post-cards .blog-post-info { padding: 28px 24px; }
   .post-cards .blog-post-title { font-size: 21px; }
 }
+
+/* Article reactions and public discussion. */
+.article-interactions { margin-top: 48px; padding-top: 30px; border-top: 1px solid #e3e9ed; color: #34434b; }
+.article-interactions h2 { margin: 30px 0 20px; font-size: 24px; }
+.like-bar, .comment-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; }
+.article-interactions button { cursor: pointer; font: inherit; border-radius: 8px; padding: 9px 16px; border: 1px solid #dbe4e8; background: white; color: #176d62; }
+.article-interactions .article-like { color: #c24667; border-color: #efd2da; background: #fff6f8; padding: 12px 25px; font-weight: 600; }
+.article-like:hover { background: #ffecf1; }
+.article-interactions button:disabled { opacity: .55; cursor: wait; }
+.interaction-hint, .comment-meta time, .comment-parent { color: #77868e; font-size: 13px; }
+.comment-form { display: grid; gap: 14px; }
+.comment-form label { display: grid; gap: 8px; font-size: 14px; }
+.comment-form input, .comment-form textarea { box-sizing: border-box; width: 100%; padding: 12px 14px; border: 1px solid #dce4e8; border-radius: 8px; background: #fbfcfd; color: #34434b; font: inherit; outline: none; }
+.comment-form input { max-width: 300px; }
+.comment-form textarea { min-height: 120px; resize: vertical; }
+.comment-form input:focus, .comment-form textarea:focus { border-color: #268679; }
+.article-interactions .comment-submit { background: #176d62; border-color: #176d62; color: white; }
+.interaction-status { color: #176d62; font-size: 14px; min-height: 22px; }
+.comment-item { padding: 22px 0; border-bottom: 1px solid #e8edf0; }
+.comment-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.comment-owner { padding: 1px 7px; border-radius: 4px; background: #e3f2ee; color: #176d62; font-size: 12px; }
+.comment-body { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.85; margin: 10px 0; }
+.article-interactions .comment-reply { border: 0; padding: 0; font-size: 13px; }
+.comment-reply-hint { background: #eef7f4; border-radius: 6px; padding: 8px 12px; font-size: 13px; }
+.comment-more, .comment-refresh { margin-top: 18px; margin-right: 10px; }
+@media (max-width: 600px) { .article-interactions { margin-top: 30px; } .comment-meta time { width: 100%; } }

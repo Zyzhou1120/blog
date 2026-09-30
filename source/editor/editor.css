@@ -844,3 +844,10 @@ body.focus-mode .pane-header { display: none; }
 body.focus-mode .workbench { grid-template-columns: minmax(0, 1fr); }
 body.focus-mode .main-area { width: 100%; height: 100%; }
 body.focus-mode .markdown-toolbar { flex: none; }
+
+.comments-dialog { width: min(760px, 94vw); max-height: 85dvh; overflow: auto; padding: 24px; }
+.managed-comment { padding: 20px 0; border-bottom: 1px solid #dce4e7; }
+.managed-comment > a { color: #176d62; font-weight: 600; }
+.managed-comment-body { white-space: pre-wrap; overflow-wrap: anywhere; }
+.managed-reply { display: flex; gap: 12px; align-items: start; margin-top: 12px; }
+.managed-reply textarea { min-height: 70px; flex: 1; min-width: 0; padding: 10px; border: 1px solid #dce4e7; border-radius: 6px; font: inherit; }

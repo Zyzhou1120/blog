@@ -1,3 +1,4 @@
+import { articleIdentity } from './engagement.js'
 const json = (data, status = 200) => Response.json(data, { status, headers: { 'Cache-Control': 'no-store' } })
 
 export function initializeViews(sql) {
@@ -24,11 +25,7 @@ export async function articleViews(blog, request, name) {
   }
   return blog.ctx.storage.transactionSync(() => {
     const sql = blog.sql
-    // All old names share the same persistent counter after a title/file rename.
-    const names = [canonical, ...sql.exec('SELECT name FROM aliases WHERE target = ?', canonical).toArray().map(row => row.name)]
-    const id = names.map(alias => sql.exec('SELECT id FROM view_keys WHERE name = ?', alias).toArray()[0]?.id).find(Boolean) || crypto.randomUUID()
-    for (const alias of names) sql.exec('INSERT INTO view_keys VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET id=excluded.id', alias, id)
-    sql.exec('INSERT OR IGNORE INTO view_totals VALUES (?, 0)', id)
+    const id = articleIdentity(blog, canonical)
     if (visitor) {
       sql.exec('DELETE FROM view_days WHERE day < ?', day)
       sql.exec('INSERT OR IGNORE INTO view_days VALUES (?, ?, ?)', id, day, visitor)
