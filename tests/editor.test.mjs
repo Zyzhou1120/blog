@@ -15,7 +15,7 @@ function reply(status, data) {
   return { ok: status >= 200 && status < 300, status, json: async () => data }
 }
 
-function createEditor({ savedToken = '', lastDocument = '', savedDraft = '', draftSha = 'old-sha', freshReads = false, raceOnPut = false, staleHtml = false } = {}) {
+function createEditor({ savedToken = '', rememberedToken = '', authFailure = 0, lastDocument = '', savedDraft = '', draftSha = 'old-sha', freshReads = false, raceOnPut = false, staleHtml = false } = {}) {
   let remote = { sha: 'old-sha', text: original }
   let cached = { ...remote }
   let putCount = 0
@@ -30,6 +30,7 @@ function createEditor({ savedToken = '', lastDocument = '', savedDraft = '', dra
   window.TextDecoder = TextDecoder
   window.TextEncoder = TextEncoder
   window.confirm = () => true
+  if (rememberedToken) window.localStorage.setItem('blog-editor:token', rememberedToken)
   if (savedToken) window.sessionStorage.setItem('blog-editor:token', savedToken)
   if (lastDocument) window.sessionStorage.setItem('blog-editor:last-document', lastDocument)
   if (savedDraft) window.localStorage.setItem(`blog-editor:draft:${lastDocument}`, JSON.stringify({ text: savedDraft, sha: draftSha }))
@@ -38,7 +39,7 @@ function createEditor({ savedToken = '', lastDocument = '', savedDraft = '', dra
     if (url.includes('publish-status.json')) return reply(200, { posts: { 'welcome.md': { sha: publishedSha, url: '/blog/2026/09/29/welcome/' } } })
     if (url.includes('/blog/2026/09/29/welcome/')) return { ok: true, text: async () => `<article id="article-container">正文<span id="blog-publication" data-source="welcome.md" data-sha="${staleHtml ? 'old-sha' : publishedSha}"></span></article>` }
     if (url.includes('/actions/workflows/pages.yml/runs')) return reply(200, { workflow_runs: buildFailed ? [{ head_sha: 'commit-sha', status: 'completed', conclusion: 'failure' }] : [] })
-    if (url === 'https://api.github.com/user') return reply(200, { login: 'Zyzhou1120' })
+    if (url === 'https://api.github.com/user') return authFailure ? reply(authFailure, { message: 'Connection failed' }) : reply(200, { login: 'Zyzhou1120' })
     if (url === 'https://api.github.com/repos/Zyzhou1120/blog') return reply(200, { permissions: { push: true } })
     if (url.endsWith('/contents/source/_posts?ref=main')) {
       return reply(200, [{ type: 'file', name: 'welcome.md' }])
@@ -281,4 +282,55 @@ title: 公式
     assert.equal(doc.querySelectorAll('#preview .katex').length, 2)
     assert.equal(doc.querySelectorAll('#preview .katex-error').length, 0)
   } finally { editor.close() }
+})
+
+test('refresh never shows the login form while restoring a remembered session', async () => {
+  const editor = createEditor({ rememberedToken: 'test-token', lastDocument: 'welcome.md' })
+  try {
+    const doc = editor.window.document
+    assert.equal(doc.getElementById('auth-view').hidden, true)
+    await until(() => doc.getElementById('filename').textContent === 'welcome.md')
+    assert.equal(doc.getElementById('editor-view').hidden, false)
+    assert.equal(doc.getElementById('auth-view').hidden, true)
+    doc.getElementById('logout').click()
+    assert.equal(editor.window.localStorage.getItem('blog-editor:token'), null)
+    assert.equal(editor.window.sessionStorage.getItem('blog-editor:token'), null)
+  } finally { editor.close() }
+})
+
+test('temporary connection failures retain the session and offer a retry instead of login', async () => {
+  const editor = createEditor({ savedToken: 'test-token', authFailure: 503 })
+  try {
+    const doc = editor.window.document
+    await until(() => !doc.getElementById('auth-button').disabled)
+    assert.equal(editor.window.sessionStorage.getItem('blog-editor:token'), 'test-token')
+    assert.equal(doc.getElementById('auth-view').hidden, true)
+    assert.equal(doc.getElementById('retry-connection').hidden, false)
+  } finally { editor.close() }
+})
+
+test('an expired remembered token returns to login and is removed from both stores', async () => {
+  const editor = createEditor({ savedToken: 'expired-token', rememberedToken: 'expired-token', authFailure: 401 })
+  try {
+    const doc = editor.window.document
+    await until(() => !doc.getElementById('auth-button').disabled)
+    assert.equal(doc.getElementById('auth-view').hidden, false)
+    assert.equal(doc.getElementById('connection-view').hidden, true)
+    assert.equal(editor.window.localStorage.getItem('blog-editor:token'), null)
+    assert.equal(editor.window.sessionStorage.getItem('blog-editor:token'), null)
+    assert.match(doc.getElementById('auth-error').textContent, /过期/)
+  } finally { editor.close() }
+})
+
+test('login persists by default while opting out keeps credentials in this tab only', async () => {
+  for (const remember of [true, false]) {
+    const editor = createEditor()
+    try {
+      editor.window.document.getElementById('remember-session').checked = remember
+      await logIn(editor.window)
+      assert.equal(editor.window.localStorage.getItem('blog-editor:token'), remember ? 'test-token' : null)
+      assert.equal(editor.window.sessionStorage.getItem('blog-editor:token'), 'test-token')
+      assert.equal(editor.window.localStorage.getItem('blog-editor:remember-session'), String(remember))
+    } finally { editor.close() }
+  }
 })

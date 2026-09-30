@@ -10,21 +10,27 @@ layout: false
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.github.com https://zyzhou-blog-live.zyzhou1120-blog.workers.dev; img-src 'self' data: https:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>文章编辑 | 我的博客</title>
   <link rel="stylesheet" href="../vendor/katex/katex.min.css">
-  <link rel="stylesheet" href="editor.css?v=7">
-  <script src="editor.js?v=11" defer></script>
+  <link rel="stylesheet" href="editor.css?v=8">
+  <script src="editor.js?v=12" defer></script>
 </head>
 <body data-view="edit" data-layout="split">
-  <div id="auth-view" class="auth-view">
+  <div id="connection-view" class="connection-view" role="status">
+    <i data-lucide="square-pen"></i><h1 id="connection-title">正在打开编辑器…</h1>
+    <p id="connection-detail">正在恢复你的写作空间</p>
+    <div class="connection-actions"><button id="retry-connection" class="primary-button" type="button" hidden>重新连接</button><button id="reset-connection" class="quiet-button" type="button" hidden>使用其他令牌</button></div>
+  </div>
+  <div id="auth-view" class="auth-view" hidden>
     <header class="auth-header"><a href="../" target="_blank" rel="noopener noreferrer">我的博客</a><span>文章编辑</span></header>
     <main class="auth-main">
       <div class="auth-heading"><span class="auth-icon"><i data-lucide="square-pen"></i></span><h1>开始写作</h1><p>Zyzhou1120 / blog</p></div>
       <form id="auth-form" class="auth-form">
         <label for="token">GitHub 访问令牌</label>
         <div class="token-field"><i data-lucide="key-round"></i><input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_..." required></div>
+        <label class="remember-session"><input id="remember-session" type="checkbox" checked>在此浏览器保持登录</label>
         <button id="auth-button" class="primary-button" type="submit">连接仓库 <i data-lucide="arrow-right"></i></button>
         <p id="auth-error" class="form-error" role="alert" hidden></p>
       </form>
-      <p class="auth-note">仅接受仓库所有者的令牌，需授予此仓库 Contents 读写权限。当前标签页刷新后会自动连接；关闭标签页或退出编辑后清除令牌。</p>
+      <p class="auth-note">仅接受仓库所有者的令牌，需授予此仓库 Contents 读写权限。勾选保持登录后，刷新或重新打开编辑页会自动连接。令牌保存在此浏览器，点击“退出编辑”即可清除。</p>
       <a class="token-link" href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">创建细粒度令牌 <i data-lucide="external-link"></i></a>
     </main>
   </div>

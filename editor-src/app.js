@@ -7,6 +7,7 @@ import { createPublicationTracker } from './publication.js'
 import { setupToolbar } from './toolbar.js'
 import { liveEndpoint, liveRequest, liveUrl } from './live-api.js'
 import { setupImages } from './images.js'
+import { readSession, rememberSession, clearSession, shouldRememberSession } from './session.js'
 import { setupSidebar } from './sidebar.js'
 import { categoryPaths } from './categories.js'
 import {
@@ -21,7 +22,6 @@ const REPO = 'blog'
 const BRANCH = 'main'
 const POSTS_PATH = 'source/_posts'
 const API = `https://api.github.com/repos/${OWNER}/${REPO}`
-const SESSION_TOKEN_KEY = 'blog-editor:token'
 const LAST_DOCUMENT_KEY = 'blog-editor:last-document'
 const icons = { SquarePen, KeyRound, ArrowRight, Menu, Search, PanelLeft, ChevronLeft, FilePlus2, Upload, LogOut, RefreshCw, ExternalLink, FileText, X, Minus, Bold, Italic, Strikethrough, Sigma, Link, Image, Code, SquareCode, Table2, Quote, List, ListOrdered, ListChecks, Undo2, Redo2, Columns2, Eye, Maximize, CircleHelp }
 const $ = (id) => document.getElementById(id)
@@ -126,6 +126,7 @@ function encodedPath(path) {
 async function request(path, options = {}) {
   const response = await fetch(path.startsWith('https://') ? path : `${API}${path}`, {
     cache: 'no-store',
+    signal: AbortSignal.timeout(15000),
     ...options,
     headers: {
       Accept: 'application/vnd.github+json',
@@ -557,20 +558,40 @@ async function publishLive() {
   } finally { $('publish').disabled = false }
 }
 
-async function connect(nextToken) {
+function showConnection(failed = false) {
+  $('auth-view').hidden = true
+  $('editor-view').hidden = true
+  $('connection-view').hidden = false
+  $('connection-title').textContent = failed ? '暂时无法连接' : '正在恢复编辑界面…'
+  $('connection-detail').textContent = failed ? '登录状态已保留。网络恢复后点击重新连接即可。' : '正在读取文章和本地草稿，无需重新登录'
+  $('retry-connection').hidden = !failed
+  $('reset-connection').hidden = !failed
+}
+
+function showLogin() {
+  $('connection-view').hidden = true
+  $('editor-view').hidden = true
+  $('auth-view').hidden = false
+}
+
+async function connect(nextToken, restoring = false) {
   token = nextToken
+  let verified = false
+  if (restoring) showConnection()
   $('auth-button').disabled = true
   $('auth-error').hidden = true
   try {
     const account = await request('https://api.github.com/user')
-    if (account.login.toLowerCase() !== OWNER.toLowerCase()) throw new Error(`此编辑页仅允许 ${OWNER} 登录。`)
+    if (account.login.toLowerCase() !== OWNER.toLowerCase()) throw Object.assign(new Error(`此编辑页仅允许 ${OWNER} 登录。`), { invalidSession: true })
     const repository = await request('')
-    if (repository.permissions?.push === false) throw new Error('此令牌没有仓库写入权限。请授予 Contents 读写权限。')
+    if (repository.permissions?.push === false) throw Object.assign(new Error('此令牌没有仓库写入权限。请授予 Contents 读写权限。'), { invalidSession: true })
+    verified = true
+    rememberSession(token, $('remember-session').checked)
     if (liveEndpoint) await liveRequest('/sync', { method: 'POST' }, token)
     await loadPosts()
-    sessionStorage.setItem(SESSION_TOKEN_KEY, token)
     $('account-name').textContent = `@${account.login}`
     $('token').value = ''
+    $('connection-view').hidden = true
     $('auth-view').hidden = true
     $('editor-view').hidden = false
     let lastDocument = sessionStorage.getItem(LAST_DOCUMENT_KEY)
@@ -603,10 +624,18 @@ async function connect(nextToken) {
     }
     void loadPostDetails()
   } catch (error) {
-    token = ''
-    sessionStorage.removeItem(SESSION_TOKEN_KEY)
-    $('auth-error').textContent = showError(error)
-    $('auth-error').hidden = false
+    if (error.status === 401 || error.invalidSession) {
+      token = ''
+      clearSession()
+      showLogin()
+      $('auth-error').textContent = showError(error)
+      $('auth-error').hidden = false
+    } else if (restoring || verified) {
+      showConnection(true)
+    } else {
+      $('auth-error').textContent = showError(error)
+      $('auth-error').hidden = false
+    }
   } finally {
     $('auth-button').disabled = false
   }
@@ -670,23 +699,31 @@ $('logout').addEventListener('click', () => {
   token = ''
   publication.stop()
   liveCheck += 1
-  sessionStorage.removeItem(SESSION_TOKEN_KEY)
+  clearSession()
   filename = ''
   sha = null
   baseText = ''
-  $('editor-view').hidden = true
-  $('auth-view').hidden = false
+  showLogin()
   $('token').focus()
 })
 
-const savedToken = sessionStorage.getItem(SESSION_TOKEN_KEY)
+const savedToken = readSession()
+$('remember-session').checked = shouldRememberSession()
 if (liveEndpoint) {
   const notice = document.createElement('p')
   notice.className = 'auth-note'
   notice.textContent = '实时发布已启用。令牌仅用于 GitHub 和你自己的发布服务，不会写入文章数据库。'
   $('auth-form').append(notice)
 }
-if (savedToken) connect(savedToken)
+if (savedToken) connect(savedToken, true)
+else showLogin()
+$('retry-connection').addEventListener('click', () => connect(token, true))
+$('reset-connection').addEventListener('click', () => {
+  clearSession()
+  token = ''
+  showLogin()
+  $('token').focus()
+})
 
 document.addEventListener('keydown', (event) => {
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's' && !$('editor-view').hidden) {

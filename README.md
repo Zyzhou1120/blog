@@ -28,7 +28,7 @@ pnpm exec hexo new "文章标题"
 
 打开 <https://zyzhou1120.github.io/blog/editor/>。左侧写 Markdown，右侧实时预览；可以新建文章、打开旧文章、恢复本地草稿，然后提交到 GitHub。
 
-首次使用时，在 GitHub 创建细粒度个人访问令牌：Repository access 只选 `Zyzhou1120/blog`，Repository permissions 中把 **Contents** 设为 **Read and write**。在编辑页输入令牌，不要把令牌发给别人或写进文章。令牌保存在当前标签页的会话中，刷新后自动连接；关闭标签页或点击退出编辑后清除。
+首次使用时，在 GitHub 创建细粒度个人访问令牌：Repository access 只选 `Zyzhou1120/blog`，Repository permissions 中把 **Contents** 设为 **Read and write**。在编辑页输入令牌，不要把令牌发给别人或写进文章。默认勾选“在此浏览器保持登录”，令牌保存在此浏览器的 localStorage，刷新或重新打开编辑页后自动连接。取消勾选时仅保存在当前标签页的 sessionStorage。点击退出编辑会清除两处令牌。网络错误保留登录记录并允许重试；令牌失效时需要重新登录。
 
 提交文章后，GitHub Actions 会自动构建并发布博客。编辑器右侧预览会立即更新；上方发布状态会核对公开网站中的文章版本，只有版本一致才显示“已发布”。点击“查看最新文章”可避开旧页面缓存；“发布记录”可查看构建失败的原因。文章页面也会检查版本并在发现更新时自动载入新页面。
 

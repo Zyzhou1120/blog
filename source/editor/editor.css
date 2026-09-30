@@ -808,3 +808,11 @@ body.focus-mode .sidebar { display: none; }
 .post-fields input:focus { outline: 2px solid #258474; outline-offset: 1px; }
 .post-fields small { color: #81949d; font-size: 11px; overflow-wrap: anywhere; }
 @media (max-width: 850px) { .post-fields { gap: 10px; padding: 10px 14px; flex-wrap: wrap; } .post-fields .post-title-field { flex: 1 0 100%; } .post-fields .post-date-field { flex-basis: 135px; } }
+
+.connection-view { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px; text-align: center; color: #647983; }
+.connection-view > svg { width: 38px; height: 38px; color: #176d62; margin-bottom: 12px; }
+.connection-view h1 { font-size: 22px; color: #243b45; }
+.connection-view p { margin: 4px 0 24px; max-width: 440px; line-height: 1.8; }
+.connection-actions { display: flex; gap: 12px; }
+.auth-form .remember-session { display: flex; align-items: center; gap: 8px; margin: 12px 0; font-size: 14px; font-weight: 400; color: #647983; }
+.remember-session input { width: 16px; height: 16px; accent-color: #176d62; }

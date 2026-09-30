@@ -14,7 +14,7 @@
 
 ## 保存与权限
 
-- 编辑器只在当前标签页 sessionStorage 中保留 GitHub 令牌；刷新仍保持登录，退出即清除。
+- 编辑器默认在此浏览器的 localStorage 中保持 GitHub 登录；取消“在此浏览器保持登录”时仅使用 sessionStorage。退出编辑会清除两处令牌，临时网络错误不会清除登录记录。
 - 开启实时服务后，令牌会通过 HTTPS 传给博主自己的 Worker。每次写入都向 GitHub 验证账户必须是 `Zyzhou1120`；实际仓库写入仍由 GitHub 校验令牌权限。
 - Worker 不把令牌写入 SQLite、文章、日志或浏览器缓存。CORS 只允许博客站点的 origin；公开读取无须登录。
 - 发布过程先向 GitHub 保存，再写入 SQLite 并广播 WebSocket 通知。返回成功后，编辑器还会读取公开 API，核对 SHA 和完整正文。不会因为构建清单变化就认定内容已上线。
