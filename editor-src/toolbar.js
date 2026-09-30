@@ -1,5 +1,6 @@
 import { applyMarkdownCommand } from './commands.js'
 import { setupLineNumbers } from './line-numbers.js'
+import { setupFullscreen } from './fullscreen.js'
 
 export function setupToolbar({ showMessage }) {
   const $ = (id) => document.getElementById(id)
@@ -106,10 +107,7 @@ export function setupToolbar({ showMessage }) {
       for (const item of document.querySelectorAll('button[data-layout]')) item.setAttribute('aria-pressed', String(item === button))
     })
   }
-  $('focus-mode').addEventListener('click', () => {
-    const enabled = document.body.classList.toggle('focus-mode')
-    $('focus-mode').setAttribute('aria-pressed', String(enabled))
-  })
+  setupFullscreen({ showMessage })
   $('scroll-top').addEventListener('click', () => { input.scrollTop = 0; $('preview').scrollTop = 0 })
   $('editor-help').addEventListener('click', () => $('help-dialog').showModal())
   $('close-help').addEventListener('click', () => $('help-dialog').close())

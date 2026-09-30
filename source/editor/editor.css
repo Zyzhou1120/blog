@@ -816,3 +816,17 @@ body.focus-mode .sidebar { display: none; }
 .connection-actions { display: flex; gap: 12px; }
 .auth-form .remember-session { display: flex; align-items: center; gap: 8px; margin: 12px 0; font-size: 14px; font-weight: 400; color: #647983; }
 .remember-session input { width: 16px; height: 16px; accent-color: #176d62; }
+
+/* Fullscreen leaves the formatting toolbar and writing panes edge to edge. */
+body.focus-mode { overflow: hidden; }
+body.focus-mode .app-shell { height: 100dvh; min-height: 0; }
+body.focus-mode .topbar,
+body.focus-mode .main-area > .document-bar,
+body.focus-mode .main-area > .post-fields,
+body.focus-mode .main-area > .publication-bar,
+body.focus-mode .main-area > .draft-notice,
+body.focus-mode .editor-footer,
+body.focus-mode .pane-header { display: none; }
+body.focus-mode .workbench { grid-template-columns: minmax(0, 1fr); }
+body.focus-mode .main-area { width: 100%; height: 100%; }
+body.focus-mode .markdown-toolbar { flex: none; }

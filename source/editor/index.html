@@ -10,8 +10,8 @@ layout: false
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.github.com https://zyzhou-blog-live.zyzhou1120-blog.workers.dev; img-src 'self' data: https:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>文章编辑 | 我的博客</title>
   <link rel="stylesheet" href="../vendor/katex/katex.min.css">
-  <link rel="stylesheet" href="editor.css?v=8">
-  <script src="editor.js?v=12" defer></script>
+  <link rel="stylesheet" href="editor.css?v=9">
+  <script src="editor.js?v=13" defer></script>
 </head>
 <body data-view="edit" data-layout="split">
   <div id="connection-view" class="connection-view" role="status">
@@ -71,7 +71,7 @@ layout: false
           </div>
           <div class="toolbar-group"><button id="undo" type="button" title="撤销（⌘/Ctrl+Z）" aria-label="撤销"><i data-lucide="undo-2"></i></button><button id="redo" type="button" title="重做（⌘/Ctrl+Shift+Z）" aria-label="重做"><i data-lucide="redo-2"></i></button></div>
           <div class="toolbar-group toolbar-views">
-            <button type="button" data-layout="edit" title="仅编辑" aria-label="仅编辑" aria-pressed="false"><i data-lucide="square-pen"></i></button><button type="button" data-layout="split" title="左右分栏" aria-label="左右分栏" aria-pressed="true"><i data-lucide="columns-2"></i></button><button type="button" data-layout="preview" title="仅预览" aria-label="仅预览" aria-pressed="false"><i data-lucide="eye"></i></button><button id="focus-mode" type="button" title="专注模式" aria-label="专注模式" aria-pressed="false"><i data-lucide="maximize"></i></button><button id="editor-help" type="button" title="使用帮助" aria-label="使用帮助"><i data-lucide="circle-help"></i></button>
+            <button type="button" data-layout="edit" title="仅编辑" aria-label="仅编辑" aria-pressed="false"><i data-lucide="square-pen"></i></button><button type="button" data-layout="split" title="左右分栏" aria-label="左右分栏" aria-pressed="true"><i data-lucide="columns-2"></i></button><button type="button" data-layout="preview" title="仅预览" aria-label="仅预览" aria-pressed="false"><i data-lucide="eye"></i></button><button id="focus-mode" type="button" title="全屏编辑" aria-label="全屏编辑" aria-pressed="false"><i data-lucide="maximize"></i></button><button id="editor-help" type="button" title="使用帮助" aria-label="使用帮助"><i data-lucide="circle-help"></i></button>
           </div>
         </div>
         <div class="panes"><section id="edit-pane" class="pane edit-pane" aria-label="Markdown 编辑"><div class="pane-header"><span>MARKDOWN</span><span id="edit-hint">自动保存本地草稿</span></div><div class="source-editor"><pre id="line-numbers" aria-hidden="true">1</pre><textarea id="markdown" wrap="soft" aria-label="Markdown 正文" spellcheck="false" placeholder="开始写作..."></textarea></div></section><section id="preview-pane" class="pane preview-pane" aria-label="文章预览"><div class="pane-header"><span>预览</span><span>实时更新 · 提交后自动发布</span></div><div id="preview" class="preview-content"></div></section></div>
