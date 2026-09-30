@@ -334,3 +334,35 @@ test('login persists by default while opting out keeps credentials in this tab o
     } finally { editor.close() }
   }
 })
+
+test('source colors follow edits, undo, scrolling and Chinese composition without changing content', async () => {
+  const editor = createEditor()
+  try {
+    await logIn(editor.window)
+    const { document, Event } = editor.window
+    const input = document.getElementById('markdown')
+    const layer = document.getElementById('source-highlight')
+    const initial = input.value
+    assert.equal(layer.textContent, initial + '\u200b')
+    const source = '# 标题\n\n**重点** $x^2$\n'
+    input.value = source
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    assert.equal(layer.textContent, source + '\u200b')
+    assert.ok(layer.querySelector('.hljs-section'))
+    assert.ok(layer.querySelector('.hljs-formula'))
+    input.scrollTop = 80
+    input.dispatchEvent(new Event('scroll'))
+    assert.equal(layer.scrollTop, 80)
+    input.dispatchEvent(new Event('compositionstart'))
+    assert.ok(input.parentElement.classList.contains('is-composing'))
+    input.dispatchEvent(new Event('compositionend'))
+    assert.equal(input.parentElement.classList.contains('is-composing'), false)
+    document.getElementById('undo').click()
+    assert.equal(input.value, initial)
+    assert.equal(layer.textContent, initial + '\u200b')
+    document.getElementById('redo').click()
+    assert.equal(layer.textContent, source + '\u200b')
+  } finally {
+    editor.close()
+  }
+})

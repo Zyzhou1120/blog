@@ -1,11 +1,13 @@
 import { applyMarkdownCommand } from './commands.js'
 import { setupLineNumbers } from './line-numbers.js'
 import { setupFullscreen } from './fullscreen.js'
+import { setupHighlighting } from './highlighting.js'
 
 export function setupToolbar({ showMessage }) {
   const $ = (id) => document.getElementById(id)
   const input = $('markdown')
   const updateLineNumbers = setupLineNumbers(input, $('line-numbers'))
+  const updateHighlighting = setupHighlighting(input, $('source-highlight'))
   let history = []
   let position = -1
   let restoring = false
@@ -14,6 +16,7 @@ export function setupToolbar({ showMessage }) {
 
   function update() {
     updateLineNumbers()
+    updateHighlighting()
     const before = input.value.slice(0, input.selectionStart).split('\n')
     $('cursor-position').textContent = `第 ${before.length} 行，第 ${before.at(-1).length + 1} 列`
     $('undo').disabled = position <= 0

@@ -44,6 +44,9 @@ importers:
       hexo-theme-butterfly:
         specifier: ^5.7.0
         version: 5.7.0(supports-color@10.0.0)
+      highlight.js:
+        specifier: ^11.12.0
+        version: 11.12.0
       katex:
         specifier: ^0.18.9
         version: 0.18.9

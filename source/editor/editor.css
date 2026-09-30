@@ -606,6 +606,20 @@ svg {
 .markdown-toolbar button:disabled { opacity: .3; cursor: default; }
 .markdown-toolbar button:focus-visible { outline: 2px solid #176d62; outline-offset: 1px; }
 .source-editor { display: flex; flex: 1; min-height: 0; min-width: 0; overflow: hidden; }
+.source-input { position: relative; flex: 1; min-width: 0; min-height: 0; overflow: hidden; background: #fff; }
+#source-highlight { position: absolute; inset: 0 auto auto 0; margin: 0; border: 0; overflow: hidden; pointer-events: none; user-select: none; color: #26383f; white-space: pre-wrap; overflow-wrap: anywhere; word-break: normal; }
+.source-input #markdown { position: relative; display: block; }
+.syntax-highlighted #markdown { color: transparent; caret-color: #26383f; background: transparent; }
+.syntax-highlighted.is-composing #markdown { color: #26383f; }
+.is-composing #source-highlight { visibility: hidden; }
+#source-highlight span { font-weight: inherit; font-style: inherit; }
+#source-highlight .hljs-section { color: #215db0; }
+#source-highlight .hljs-strong, #source-highlight .hljs-emphasis { color: #8250a5; }
+#source-highlight .hljs-string, #source-highlight .hljs-link, #source-highlight .hljs-symbol { color: #087970; }
+#source-highlight .hljs-code { color: #995015; }
+#source-highlight .hljs-formula { color: #a1357e; }
+#source-highlight .hljs-bullet, #source-highlight .hljs-quote { color: #587482; }
+#source-highlight .hljs-literal { color: #995015; }
 #line-numbers { flex: none; width: 52px; padding: 24px 10px; margin: 0; overflow: hidden; background: #f5f7f8; color: #91a0a7; border-right: 1px solid #e7ecef; text-align: right; user-select: none; font: 14px/1.8 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 #markdown { flex: 1; min-width: 0; padding-left: 18px; }
 .editor-footer { display: flex; justify-content: space-between; align-items: center; gap: 10px; min-height: 34px; border-top: 1px solid #dce4e7; padding: 6px 18px; color: #7a8b93; font-size: 11px; }
