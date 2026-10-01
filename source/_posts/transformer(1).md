@@ -1,0 +1,12 @@
+---
+title: transformer(1)
+date: 2026-09-30
+tags: []
+categories:
+  - 深度学习
+---
+在上一节中我们考虑了输出数量等于输入数量的情况，这一节中 transformer 主要帮助我们解决 **seqtoseq** 类型的任务，即序列到序列，输出数量是不定的。
+
+### Encoder
+
+**Encoder** 
