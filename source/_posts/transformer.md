@@ -3,7 +3,7 @@ title: transformer
 date: 2026-09-30
 tags: []
 categories:
-  - 深度学习
+  - 深度学习初步
 permalink: 2026/09/30/transformer(1)/
 ---
 > 上一节：[自注意力机制](/blog/read/?post=自注意力机制.md)。文中的结构图可以点击查看原图。
