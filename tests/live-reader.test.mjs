@@ -14,7 +14,7 @@ function fixture({ generic = false, home = false, categories = false, categoryQu
   let post = { name: 'welcome.md', sha: 'new-sha', text: '---\ntitle: 新标题\ndate: 2026-09-29\n---\n2222\n3333\n4444', updated: '2026-09-29T15:00:00Z' }
   const html = home ? '<div id="recent-posts"><div class="recent-post-items"></div></div>' : generic ? '<main class="layout"><div id="page"><div class="page-title">阅读文章</div><div id="article-container"><div id="live-reader">正在读取</div></div></div></main>' : '<div id="post"><h1 class="post-title">旧标题</h1><div id="article-container">2222<span id="blog-publication" data-source="welcome.md" data-sha="old-sha"></span></div></div>'
   const categoryHtml = '<div class="card-categories"><ul id="aside-cat-list"><li>随笔</li></ul></div>' + (categories ? '<div id="page"><div class="page-title">分类</div><div class="category-lists">随笔</div></div>' : '')
-  const dom = new JSDOM(html + categoryHtml, { url: `https://zyzhou1120.github.io/blog/${categories ? 'categories/' + categoryQuery : home ? '' : generic ? 'read/?post=welcome.md' : '2026/09/29/welcome/'}`, runScripts: 'outside-only', pretendToBeVisual: true })
+  const dom = new JSDOM(html + categoryHtml + '<aside id="aside-content"><div class="sticky_layout"><section id="card-toc">旧目录</section></div></aside>', { url: `https://zyzhou1120.github.io/blog/${categories ? 'categories/' + categoryQuery : home ? '' : generic ? 'read/?post=welcome.md' : '2026/09/29/welcome/'}`, runScripts: 'outside-only', pretendToBeVisual: true })
   const { window } = dom
   window.TextEncoder = TextEncoder
   window.AbortSignal = AbortSignal
@@ -182,4 +182,26 @@ test('search page restores its query and searches the static catalog when live s
     assert.equal(f.window.document.querySelector('[name=q]').value, '矩阵')
     assert.deepEqual([...f.window.document.querySelectorAll('.article-title')].map(n => n.textContent), ['重点', '进阶'])
   } finally { f.close() }
+})
+
+
+test('article navigation links resolve unique headings and refresh with live edits', async () => {
+  const page = fixture({ generic: true })
+  const doc = page.window.document
+  try {
+    await until(() => doc.getElementById('blog-publication'))
+    page.update('---\ntitle: 目录文章\n---\n### 计算步骤\n正文\n#### 细节\n正文\n### 计算步骤\n后文')
+    await until(() => doc.querySelectorAll('#reader-toc a').length === 3)
+    const links = [...doc.querySelectorAll('#reader-toc a')]
+    const ids = links.map(link => decodeURIComponent(link.hash.slice(1)))
+    assert.equal(new Set(ids).size, 3)
+    for (const [index, id] of ids.entries()) assert.equal(doc.getElementById(id).textContent, links[index].textContent)
+    assert.equal(doc.querySelectorAll('#reader-toc-mobile a').length, 3)
+    assert.equal(doc.querySelector('#aside-content').classList.contains('article-navigation'), true)
+    page.update('---\ntitle: 目录文章\n---\n### 更新后的章节\n正文')
+    await until(() => doc.querySelector('#reader-toc a')?.textContent === '更新后的章节')
+    assert.equal(doc.querySelectorAll('#reader-toc').length, 1)
+    assert.equal(doc.querySelectorAll('#reader-toc a').length, 1)
+    assert.equal(doc.getElementById(ids[0]), null)
+  } finally { page.close() }
 })

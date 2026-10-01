@@ -9,6 +9,7 @@ import { showArticleViews } from './views.js'
 import { mountInteractions } from './interactions.js'
 import catalog from '../shared/catalog.cjs'
 import { setupSearch } from './search.js'
+import { renderArticleNavigation } from './article-navigation.js'
 
 marked.use(mathExtension())
 marked.setOptions({ breaks: true })
@@ -66,8 +67,7 @@ function renderPost(post) {
   }
   const tags = document.querySelector('.tag_share')
   if (tags) tags.hidden = true // Static tag links can refer to metadata from an older build.
-  const toc = document.getElementById('card-toc')
-  if (toc) toc.hidden = true // Avoid stale heading links after replacing the article.
+  renderArticleNavigation(target)
   const canonical = document.querySelector('link[rel="canonical"]')
   if (reader && canonical) canonical.href = liveUrl(post.name, root)
 }
@@ -140,6 +140,8 @@ function appendCategories(target, post) {
 
 async function start() {
   if (document.getElementById('editor-view')) return
+  const builtArticle = document.querySelector('#post #article-container')
+  if (builtArticle) renderArticleNavigation(builtArticle)
   // Normalize the built homepage immediately, even if the live service is unavailable.
   const homeFeed = document.querySelector('#recent-posts .recent-post-items')
   if (homeFeed) {
