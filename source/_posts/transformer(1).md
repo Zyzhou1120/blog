@@ -32,6 +32,12 @@ $$x'_i = \frac{x_i-m}{\sigma}$$
 
 ![image](<https://raw.githubusercontent.com/Zyzhou1120/blog/main/source/images/uploads/3990b95551d7ae7dd77deac1b477c4f4e69ace63056b6cc7ac6cdf1dd2dd6dc5.png>)
 
+于是 encoder 整体结构如下：
+
+![image](<https://raw.githubusercontent.com/Zyzhou1120/blog/main/source/images/uploads/0a21984538bbed751077b7f3e2f0fc3db0e3cd27d2b6297aaf6db4f75ce1b748.png>)
+
+
+可以看到在经过若干 block 之前经过了 input embedding （将自然语言转换成向量），以及 positional encoding （前文提出的位置编码）
 
 
 > 注意：encoder 结构不一定是固定的，上述结构为初始论文提出的。完全可以尝试其他的 LN，FC，self-attention，residual 等等的组合结构。
