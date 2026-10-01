@@ -82,21 +82,23 @@ $$
 
 ### Decoder 结构
 
-**Decoder（解码器）** 的任务是根据输入序列和已经生成的内容，继续预测下一个 token。这种逐步生成的方式叫作自回归生成。
+现在主流使用的是自回归版本的 **Decoder**，目标是根据输入序列和已经生成的内容，继续预测下一个 token。
 
-token 不一定是一个汉字，也可能是词、子词或其他文本片段。为了直观理解，先假设我们使用一个按汉字划分的词表，（注意其中还包含标点、开始符和结束符）
+token 如果是汉字的话，可以假设我们使用一个按汉字划分的词表，（注意其中还包含标点、开始符和结束符）
 
-在每一步，模型都为词表中的各个选项给出分数，再通过 softmax 得到概率分布。这与前文的分类任务相同：假设词表一共有 5000 个选项，就相当于每一步做一道有 5000 个选项的选择题（笑）。训练时，也可以用交叉熵计算 loss 函数。
+看起来这个很像一个之前提到的 classification 的任务。也确实如此，如果排除掉和 encoder 的关联，它和这个结构是很像的，毕竟从所有汉字中选择一个最大的，和做一个有 5000 个选项的选择题是一样的（笑）。
 
-的确，它的结构也和我们之前见过的很像，只是在分类任务的基础上增加了 self-attention, add&norm。
+在每一步，模型都为词表中的各个选项给出分数，再通过 softmax 得到概率分布。训练时，也可以用交叉熵计算 loss 函数，和之前做简单分类任务一模一样。
+
 
 暂时略去 Decoder 与 Encoder 交互的部分，结构如下：
 
 [![Decoder 结构（暂略交叉注意力）](<https://raw.githubusercontent.com/Zyzhou1120/blog/main/source/images/uploads/af3ac95268fd98069a6ea849cb1be93f0fb199a4cc5c93a1fe199111f36d2092.png>)](<https://raw.githubusercontent.com/Zyzhou1120/blog/main/source/images/uploads/af3ac95268fd98069a6ea849cb1be93f0fb199a4cc5c93a1fe199111f36d2092.png>)
 
-我们注意到自注意力机制前面增加了 mask。这也很好理解，和上一节可以查看整个序列的自注意力相比（例如标注一个句子里所有词的词性，我们都可以先获得句子中所有词的信息）。Decoder 的预测接龙，必须要求其自注意力屏蔽未来位置进行训练。
+我们注意到自注意力机制前面增加了 mask。这也很好理解，上一节模型可以查看整个序列的自注意力（例如标注一个句子里所有词的词性，我们都可以先获得句子中所有词的信息）。
 
-(当然，在模型输出完后，还需要提供标准答案与其做交叉熵计算 loss 来训练)
+但现在是一个预测接龙任务，所以在训练的时候不能提前将标准答案传入，提前泄露答案，其自注意力屏蔽未来位置（当然在它预测结束后，还是要给定标准答案和他预测出来的结果做交叉熵。）
+
 
 [![因果掩码：第二个位置可关注前两个位置](<https://raw.githubusercontent.com/Zyzhou1120/blog/main/source/images/uploads/21249a8f4409289b3c6b758494920c2e3e587bed44067d84bd42bf92d96affd5.png>)](<https://raw.githubusercontent.com/Zyzhou1120/blog/main/source/images/uploads/21249a8f4409289b3c6b758494920c2e3e587bed44067d84bd42bf92d96affd5.png>)
 
