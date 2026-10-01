@@ -26,3 +26,18 @@ test('code examples and escaped dollar signs stay literal', () => {
   assert.match(doc.querySelector('pre').textContent, /\\\[z\\\]/)
   assert.match(doc.body.textContent, /价格 \$5，另一项 \$10/)
 })
+
+test('multiline double-dollar cases render with delimiters attached to formula lines', () => {
+  const formula = String.raw`$$\mu(N)=\begin{cases}0&{\exists i,c_i > 1}
+\\1&\forall i, c_i=1,m\equiv0\pmod{2}
+\\-1&\forall i, c_i=1,m\equiv1\pmod{2}\end{cases}$$`
+  for (const input of [formula, '公式如下：\n' + formula, formula.split('\n').map(line => '> ' + line).join('\n')]) {
+    const doc = render(input)
+    assert.equal(doc.querySelectorAll('.katex-display').length, 1)
+    assert.equal(doc.querySelectorAll('.katex-error').length, 0)
+    assert.match(doc.querySelector('annotation').textContent, /\\begin\{cases\}/)
+  }
+  const code = render('```tex\n' + formula + '\n```')
+  assert.equal(code.querySelectorAll('.katex').length, 0)
+  assert.equal(code.querySelector('code').textContent.trim(), formula)
+})

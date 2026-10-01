@@ -277,9 +277,13 @@ test('preview renders formulas next to Chinese punctuation and LaTeX parentheses
     input.value = String.raw`---
 title: 公式
 ---
-平方误差 $x^2$（即 MSE），推广到第 \(\ell\) 层。`
+平方误差 $x^2$（即 MSE），推广到第 \(\ell\) 层。
+
+$$\mu(N)=\begin{cases}0&\exists i,c_i>1
+\\1&\forall i,c_i=1,m\equiv0\pmod{2}
+\\-1&\forall i,c_i=1,m\equiv1\pmod{2}\end{cases}$$`
     input.dispatchEvent(new editor.window.Event('input', { bubbles: true }))
-    assert.equal(doc.querySelectorAll('#preview .katex').length, 2)
+    assert.equal(doc.querySelectorAll('#preview .katex').length, 3)
     assert.equal(doc.querySelectorAll('#preview .katex-error').length, 0)
   } finally { editor.close() }
 })

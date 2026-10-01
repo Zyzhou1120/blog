@@ -116,7 +116,8 @@ title: 公式检查
 
 把第一层的输出 \(\boldsymbol a^{(1)}\) 当作下一层的输入，推广到第 \(\ell\) 层。
 
-$$f(x) = \max(0, x) = \begin{cases} 0 & \text{if } x < 0 \\ x & \text{if } x \ge 0 \end{cases}$$
+$$f(x) = \max(0, x) = \begin{cases} 0 & \text{if } x < 0
+\\ x & \text{if } x \ge 0 \end{cases}$$
 `)
     await until(() => page.window.document.querySelector('#reader-heading h1')?.textContent === '公式检查')
     const root = page.window.document.getElementById('live-reader')

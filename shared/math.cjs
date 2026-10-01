@@ -9,6 +9,17 @@ module.exports = function mathExtension() {
     extensions: [
       ...markedKatex(options).extensions,
       {
+        name: 'dollarDisplayBlock',
+        level: 'block',
+        start(src) { return src.match(/(?:^|\n)(?= {0,3}\$\$(?!\$))/)?.index },
+        tokenizer(src) {
+          // Delimiters may share a line with the formula, even across multiple lines.
+          const match = src.match(/^ {0,3}\$\$(?!\$)((?:\\[\s\S]|(?!\$\$)[^\\])+?)\$\$[ \t]*(?:\n|$)/)
+          if (match && match[1].trim()) return { type: 'dollarDisplayBlock', raw: match[0], text: match[1].trim(), displayMode: true }
+        },
+        renderer,
+      },
+      {
         name: 'latexBracketBlock',
         level: 'block',
         start(src) { return src.match(/(?:^|\n)(?= {0,3}\\\[)/)?.index },

@@ -1,5 +1,5 @@
 hexo.extend.injector.register('body_end', function () {
-  const url = hexo.extend.helper.get('url_for').call(hexo, '/js/live.js?v=11')
+  const url = hexo.extend.helper.get('url_for').call(hexo, '/js/live.js?v=12')
   return `<script src="${url}" defer></script>`
 })
 
