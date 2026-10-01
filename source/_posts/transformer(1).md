@@ -98,25 +98,19 @@ token 不一定是一个汉字，也可能是词、子词或其他文本片段�
 
 ---
 
-### Cross-attention
+### cross-attention
 
-前面暂时略去了 Decoder 与 Encoder 交互的部分。以翻译为例，Decoder 在决定下一个译文词时，除了参考已经生成的译文，还需要查看原句。**交叉注意力（cross-attention）** 就负责从 Encoder 的输出中提取当前需要的信息。
+实际上，现在 LLM 主流的结构，gpt 所使用的也恰好是被抹掉中间这一块的 decoder-only 结构。
 
-[![交叉注意力的查询、键和值](<https://raw.githubusercontent.com/Zyzhou1120/blog/main/source/images/uploads/75e52285a24a2430161156eb243efe475dafe5370d4a5251ef66a4d9f803b848.png>)](<https://raw.githubusercontent.com/Zyzhou1120/blog/main/source/images/uploads/75e52285a24a2430161156eb243efe475dafe5370d4a5251ef66a4d9f803b848.png>)
+毕竟无论是什么问题，本质都可以稍加变化将其变成一个概率接龙问题，需要的只是稍稍微调。
 
-在原始 Transformer 的交叉注意力中，$q$ 来自 Decoder 当前交叉注意力子层的输入，$k$ 来自 Encoder 最后一层的输出。
+但是虽然现在的 LLM 已经不用了，但中间被抹掉的和 encoder 相关这部分还是在多模态部分有广泛应用，所以还是简单提一下。
 
-完整结构如下：
+![image](<https://raw.githubusercontent.com/Zyzhou1120/blog/main/source/images/uploads/75e52285a24a2430161156eb243efe475dafe5370d4a5251ef66a4d9f803b848.png>)
 
-[![完整的 Encoder–Decoder 结构](<https://raw.githubusercontent.com/Zyzhou1120/blog/main/source/images/uploads/813cf0b5d2170c8ec5f4a27f53477b4a0bc76a95f98153f86b50a0fd1d1f060e.png>)](<https://raw.githubusercontent.com/Zyzhou1120/blog/main/source/images/uploads/813cf0b5d2170c8ec5f4a27f53477b4a0bc76a95f98153f86b50a0fd1d1f060e.png>)
+只用在中间用 decoder 的 q 以及 encoder 一些层的 k 做若干次类似操作即可。
 
-#### 与 Decoder-only 的关系
-
-GPT 这类 Decoder-only 语言模型不使用独立的 Encoder，也没有这里连接 Encoder 的交叉注意力子层。提示文本与已生成文本组成同一个序列，模型通过因果自注意力继续预测后续 token。
-
-许多任务可以组织成文本输入与文本输出的形式，但这并不意味着只需少量微调就能解决任意问题，实际能力还取决于模型、数据和训练方式。
-
-Encoder–Decoder 架构也没有消失，例如 T5 就采用这种结构；交叉注意力还可以用于读取图像或音频编码器提供的表示。因此，理解它仍然有助于阅读翻译模型和多模态模型。
+![image](<https://raw.githubusercontent.com/Zyzhou1120/blog/main/source/images/uploads/813cf0b5d2170c8ec5f4a27f53477b4a0bc76a95f98153f86b50a0fd1d1f060e.png>)
 
 参考：[Attention Is All You Need](https://arxiv.org/abs/1706.03762)、[Layer Normalization](https://arxiv.org/abs/1607.06450)、[T5](https://arxiv.org/abs/1910.10683)。
 
