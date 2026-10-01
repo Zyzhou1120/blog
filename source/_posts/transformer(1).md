@@ -17,13 +17,18 @@ Encoder 由若干个 Block 堆叠而成，每个 Block 包含许多子层。
 
 [![Encoder 的多个 Block](<https://raw.githubusercontent.com/Zyzhou1120/blog/main/source/images/uploads/9ad7d77facb8adf9a57f65adacac28b06afa5875cf9de459a7efc90f48f97f55.png>)](<https://raw.githubusercontent.com/Zyzhou1120/blog/main/source/images/uploads/9ad7d77facb8adf9a57f65adacac28b06afa5875cf9de459a7efc90f48f97f55.png>)
 
-聚焦到一个 Block，先让输入经过多头自注意力，再把**这个注意力子层的输入**与它的输出相加，这就是残差连接（Residual Connection）。若子层的输入是 $x$、变换是 $F$，则结果为：
+聚焦到一个 Block，第一层是 multi self-attention 部分。只不过需要略微修改，把**这个注意力子层的输入**与它的输出相加，再往上传播。
+
+若子层的输入是 $x$、变换是 $F$，则结果为：
 
 $$
 x+F(x).
 $$
 
-这条直接相加的路径可以传递原有表示，也为梯度提供更直接的传播路径，使深层网络更容易优化。
+这样可以防止在多层传播中原始特征慢慢被稀释、被丢失，也为梯度提供更直接的传播路径，使深层网络更容易优化。
+此过程即为残差连接（Residual Connection）。
+
+
 
 [![残差连接](<https://raw.githubusercontent.com/Zyzhou1120/blog/main/source/images/uploads/1e6dd8bdc94559aa425d37e3e737a81125c67ca2960637513d80fd61b093175b.png>)](<https://raw.githubusercontent.com/Zyzhou1120/blog/main/source/images/uploads/1e6dd8bdc94559aa425d37e3e737a81125c67ca2960637513d80fd61b093175b.png>)
 
@@ -52,7 +57,7 @@ $$x'_i = \frac{x_i-m}{\sigma}$$
 >
 > 其中 $\epsilon$ 是用于数值稳定的小常数，$\gamma_i,\beta_i$ 是可以学习的缩放和偏移参数。归一化能帮助控制表示的数值尺度、稳定训练，但不能保证深层网络中完全不发生梯度消失或爆炸。
 
-接下来，把 LN 的输出送入前文介绍的**全连接网络**。在这里，它称为逐位置前馈网络（Feed-Forward Network，简称 FFN）：
+接下来，把 LN 的输出送入前文介绍的全连接网络。在这里，它称为逐位置前馈网络（Feed-Forward Network，简称 FFN）：
 
 $$
 \operatorname{FFN}(x)
@@ -68,7 +73,8 @@ $$
 
 [![Encoder 整体结构](<https://raw.githubusercontent.com/Zyzhou1120/blog/main/source/images/uploads/0a21984538bbed751077b7f3e2f0fc3db0e3cd27d2b6297aaf6db4f75ce1b748.png>)](<https://raw.githubusercontent.com/Zyzhou1120/blog/main/source/images/uploads/0a21984538bbed751077b7f3e2f0fc3db0e3cd27d2b6297aaf6db4f75ce1b748.png>)
 
-在进入这些 Block 之前，先把文本切分为 token，通过输入嵌入（input embedding）转换成向量，再加入位置编码（positional encoding），让模型能够利用序列中的位置信息。
+可以看到在经过若干 Block 之前经过了 input embedding （将自然语言转换成向量），以及 positional encoding （前文提出的位置编码）
+
 
 > 这里介绍的是原始论文中“残差相加后做 LN”的结构，也叫 Post-LN。其他结构可能把 LN 放在子层之前，例如 Pre-LN；具体计算顺序需要结合对应模型来看。
 
