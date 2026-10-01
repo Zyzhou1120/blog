@@ -1,5 +1,5 @@
 ---
-title: 原始 transformer
+title: transformer
 date: 2026-09-30
 tags: []
 categories:
