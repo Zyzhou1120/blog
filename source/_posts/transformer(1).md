@@ -52,25 +52,15 @@ $$x'_i = \frac{x_i-m}{\sigma}$$
 >
 > 其中 $\epsilon$ 是用于数值稳定的小常数，$\gamma_i,\beta_i$ 是可以学习的缩放和偏移参数。归一化能帮助控制表示的数值尺度、稳定训练，但不能保证深层网络中完全不发生梯度消失或爆炸。
 
-接下来，把 LN 的输出送入前文介绍的**全连接网络**。在这里，它称为逐位置前馈网络（Feed-Forward Network，简称 FFN）：每个位置分别经过同一个网络，不在这一步混合不同位置的信息。
-
-它与《深度学习引入》中分类部分的向量输出式具有相同的形式，由两层线性变换和中间的激活函数组成。原始 Transformer 使用 ReLU：
+接下来，把 LN 的输出送入前文介绍的**全连接网络**。在这里，它称为逐位置前馈网络（Feed-Forward Network，简称 FFN）：
 
 $$
 \operatorname{FFN}(x)
 =W_2\operatorname{ReLU}(W_1x+b_1)+b_2.
 $$
 
-这里 $W_1$ 把特征维度从 $d_{\mathrm{model}}$ 映射到 $d_{\mathrm{ff}}$，$W_2$ 再映射回 $d_{\mathrm{model}}$，便于与输入做残差相加。此处不接分类用的 softmax，输出仍是特征向量。
+经过 FFN 后，再做一次残差相加和 LN，才得到这个 Block 的输出。
 
-经过 FFN 后，再做一次残差相加和 LN，才得到这个 Block 的输出。用 $X$ 表示输入向量按列组成的矩阵，LN 和 FFN 分别作用于每个位置。省略 Dropout 后，整个过程可以写成：
-
-$$
-\begin{aligned}
-U &= \operatorname{LN}\bigl(X+\operatorname{MultiHeadSelfAttention}(X)\bigr),\\[0.5em]
-Z &= \operatorname{LN}\bigl(U+\operatorname{FFN}(U)\bigr).
-\end{aligned}
-$$
 
 [![Encoder Block 的组成](<https://raw.githubusercontent.com/Zyzhou1120/blog/main/source/images/uploads/3990b95551d7ae7dd77deac1b477c4f4e69ace63056b6cc7ac6cdf1dd2dd6dc5.png>)](<https://raw.githubusercontent.com/Zyzhou1120/blog/main/source/images/uploads/3990b95551d7ae7dd77deac1b477c4f4e69ace63056b6cc7ac6cdf1dd2dd6dc5.png>)
 
@@ -88,38 +78,23 @@ $$
 
 **Decoder（解码器）** 的任务是根据输入序列和已经生成的内容，继续预测下一个 token。这种逐步生成的方式叫作自回归生成。
 
-token 不一定是一个汉字，也可能是词、子词或其他文本片段。为了直观理解，下面先假设我们使用一个按汉字划分的词表，其中还包含标点、开始符和结束符等特殊符号。
+token 不一定是一个汉字，也可能是词、子词或其他文本片段。为了直观理解，先假设我们使用一个按汉字划分的词表，（注意其中还包含标点、开始符和结束符）
 
-在每一步，模型都为词表中的各个选项给出分数，再通过 softmax 得到概率分布。这与前文的分类任务相同：假设词表一共有 5000 个选项，就相当于每一步做一道有 5000 个选项的选择题（笑）。训练时，也可以用交叉熵衡量预测概率与真实类别之间的差异。
+在每一步，模型都为词表中的各个选项给出分数，再通过 softmax 得到概率分布。这与前文的分类任务相同：假设词表一共有 5000 个选项，就相当于每一步做一道有 5000 个选项的选择题（笑）。训练时，也可以用交叉熵计算 loss 函数。
+
+的确，它的结构也和我们之前见过的很像，只是在分类任务的基础上增加了 self-attention, add&norm。
 
 暂时略去 Decoder 与 Encoder 交互的部分，结构如下：
 
 [![Decoder 结构（暂略交叉注意力）](<https://raw.githubusercontent.com/Zyzhou1120/blog/main/source/images/uploads/af3ac95268fd98069a6ea849cb1be93f0fb199a4cc5c93a1fe199111f36d2092.png>)](<https://raw.githubusercontent.com/Zyzhou1120/blog/main/source/images/uploads/af3ac95268fd98069a6ea849cb1be93f0fb199a4cc5c93a1fe199111f36d2092.png>)
 
-#### 训练与生成
+我们注意到自注意力机制前面增加了 mask。这也很好理解，和上一节可以查看整个序列的自注意力相比（例如标注一个句子里所有词的词性，我们都可以先获得句子中所有词的信息）。Decoder 的预测接龙，必须要求其自注意力屏蔽未来位置进行训练。
 
-在实际生成时，Decoder 从开始符出发，预测第一个 token，再把已经生成的 token 接回输入，继续预测下一个，直到输出结束符或达到设定的长度上限。
-
-每步都选择概率最大的 token，称为**贪心解码**；也可以按照概率分布采样等。它们是不同的生成策略。
-
-训练时，我们已经知道完整的目标序列，通常会使用**右移一位的标准答案**作为 Decoder 的输入。例如，目标句子是“我爱学习”，并且在这个例子中每个汉字都是一个 token：
-
-| 位置 | 1 | 2 | 3 | 4 | 5 |
-| --- | --- | --- | --- | --- | --- |
-| Decoder 输入 | 开始符 | 我 | 爱 | 学 | 习 |
-| 预测目标 | 我 | 爱 | 学 | 习 | 结束符 |
-
-这种使用真实前文作为输入的训练方式叫作 **teacher forcing**。为了避免泄露答案，每个位置只能使用表中当前位置及之前的输入，不能读取后面的输入。
-
-#### 因果掩码
-
-这就需要因果掩码（causal mask）。和上一节可以查看整个序列的自注意力相比，Decoder 的自注意力会屏蔽未来位置：计算出查询与键的注意力分数后，将不允许关注的位置设为负无穷，再做 softmax，使这些位置的权重变为 0。
+(当然，在模型输出完后，还需要提供标准答案与其做交叉熵计算 loss 来训练)
 
 [![因果掩码：第二个位置可关注前两个位置](<https://raw.githubusercontent.com/Zyzhou1120/blog/main/source/images/uploads/21249a8f4409289b3c6b758494920c2e3e587bed44067d84bd42bf92d96affd5.png>)](<https://raw.githubusercontent.com/Zyzhou1120/blog/main/source/images/uploads/21249a8f4409289b3c6b758494920c2e3e587bed44067d84bd42bf92d96affd5.png>)
 
-图中计算 $b^2$ 时，$a^2$ 可以关注 $a^1$ 和它自己，对应 $\alpha'_{2,1}$ 与 $\alpha'_{2,2}$；$a^3,a^4$ 则被屏蔽。这里的 $a^2$ 来自右移后的输入，因此关注自己不会看到当前位置要预测的答案。
-
-借助右移和掩码，训练时可以一次输入整条目标序列，并行计算各个位置的预测与交叉熵。实际生成时还没有未来的输出，则需要逐步生成。
+如图所示，图中计算 $b^2$ 时，$a^2$ 可以关注 $a^1$ 和它自己，对应 $\alpha'_{2,1}$ 与 $\alpha'_{2,2}$；$a^3,a^4$ 则被屏蔽。
 
 ---
 
@@ -129,19 +104,9 @@ token 不一定是一个汉字，也可能是词、子词或其他文本片段�
 
 [![交叉注意力的查询、键和值](<https://raw.githubusercontent.com/Zyzhou1120/blog/main/source/images/uploads/75e52285a24a2430161156eb243efe475dafe5370d4a5251ef66a4d9f803b848.png>)](<https://raw.githubusercontent.com/Zyzhou1120/blog/main/source/images/uploads/75e52285a24a2430161156eb243efe475dafe5370d4a5251ef66a4d9f803b848.png>)
 
-在原始 Transformer 的交叉注意力中，查询来自 Decoder 当前交叉注意力子层的输入，键和值都来自 Encoder 最后一层的输出，并分别经过可学习的线性投影。
+在原始 Transformer 的交叉注意力中，$q$ 来自 Decoder 当前交叉注意力子层的输入，$k$ 来自 Encoder 最后一层的输出。
 
-沿用上一节把向量按列放置的约定：若 Decoder 当前表示为 $z^i$，Encoder 第 $j$ 个位置的最终表示为 $h^j$，则：
-
-$$
-q^i=W^qz^i,\qquad
-k^j=W^kh^j,\qquad
-v^j=W^vh^j.
-$$
-
-接下来的计算与上一节类似：用 $q^i$ 与各个 $k^j$ 计算缩放点积分数，经 softmax 得到权重，再对各个 $v^j$ 加权求和。这样得到的向量就汇总了当前生成位置需要的原句信息。
-
-Decoder 的每个 Block 都有自己的交叉注意力子层，它们读取的是同一组 Encoder 最终输出，并使用各自的投影参数。完整结构如下：
+完整结构如下：
 
 [![完整的 Encoder–Decoder 结构](<https://raw.githubusercontent.com/Zyzhou1120/blog/main/source/images/uploads/813cf0b5d2170c8ec5f4a27f53477b4a0bc76a95f98153f86b50a0fd1d1f060e.png>)](<https://raw.githubusercontent.com/Zyzhou1120/blog/main/source/images/uploads/813cf0b5d2170c8ec5f4a27f53477b4a0bc76a95f98153f86b50a0fd1d1f060e.png>)
 
