@@ -22,10 +22,19 @@ categories:
 
 ![image](<https://raw.githubusercontent.com/Zyzhou1120/blog/main/source/images/uploads/1e6dd8bdc94559aa425d37e3e737a81125c67ca2960637513d80fd61b093175b.png>)
 
+做完残差连接后，需要做一层 normalization，现在一般使用的是 Layer Norm。是计算同一个样本的不同维度做平均值 $m$ 和标准差 $\sigma$，然后做。
+
+$$x'_i = \frac{x_i-m}{\sigma}$$
+
+这样可以有效防止数值膨胀，减轻梯度消失与梯度爆炸风险。
+
+再用 LN 的输出为输入做一次 FC，做一次 residual，再做一次 LN，才是此 block 的输出。
+
+![image](<https://raw.githubusercontent.com/Zyzhou1120/blog/main/source/images/uploads/3990b95551d7ae7dd77deac1b477c4f4e69ace63056b6cc7ac6cdf1dd2dd6dc5.png>)
 
 
 
-> encoder 结构不一定是固定的，完全可以尝试其他的 LN，FC，self-attention 等等的组合结构。
+> 注意：encoder 结构不一定是固定的，上述结构为初始论文提出的。完全可以尝试其他的 LN，FC，self-attention，residual 等等的组合结构。
 
 
 
