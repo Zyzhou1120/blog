@@ -13,11 +13,13 @@ priority: 1
 
 比如字符串复制：输入 `1234`，输出 `1234`。规则看起来很简单，但如果训练时只见过长度为 40 的串，测试时突然换成长达 400 的串，模型还能正确去做吗？UT 论文做了这类实验，发现当时的 Transformer 基线在这种长度外推上表现很差。[原论文 §3.4](https://arxiv.org/html/1807.03819v3#S3.SS4)
 
-再看结构结构。假设模型有 6 个 Block，那么无论句子长短、某个位置是否需要更多次信息交换，每个位置都走这 6 层。序列变长后，注意力计算量确实会增加，但**每个位置经过的变换层数仍然固定**。
+再看结构。假设模型有 6 个 Block，那么无论句子长短、某个位置是否需要更多次信息交换，每个位置都走这 6 层。序列变长后，注意力计算量确实会增加，但**每个位置经过的变换层数仍然固定**。
 
-这就引出两个想法：能不能让模型学会一套可以重复使用的处理方法？能不能根据输入，决定这套方法要用几次？[作者介绍](https://research.google/blog/moving-beyond-translation-with-the-universal-transformer/)
+这就引出一个问题：能不能让模型学会一套可以重复使用的处理方法？能不能根据输入，决定这套方法要用几次？这样子就可以节省大量参数量，且可以当遇到很简单的输入时候，节省运算量，遇到困难输入的时候，自动增加运算。 [作者介绍](https://research.google/blog/moving-beyond-translation-with-the-universal-transformer/)
 
 Universal Transformer（简称 UT）于是把原先堆叠的 Block 改为共享参数的循环计算，并进一步尝试用 ACT 决定循环次数。前者让同一个更新规则反复使用，后者让计算轮数可以变化。在本论文中作者钦定 $k=1$，即只用一个 block 来循环若干次。
+
+原 transformer 不是图灵完备的，但增加了循环后，可以变为图灵完备。
 
 > 这里说的是原论文实验中观察到的短板，不是说 Transformer 在理论上绝对不能复制字符串。能读到所有位置的信息，也不等于已经学会了可以推广到更长输入的规则。
 
@@ -55,33 +57,35 @@ $$
 H^{(t)}=F_{\theta}\left(H^{(t-1)}\right).
 $$
 
-这里 $F_{\theta}$ 就代表一个完整 Block 的计算。
+这里 $F_{\theta}$ 就代表一个完整 Block 的计算，在此论文中 $F_{\theta}$ 不变。
 
-还有一个小问题。原先我们加入 positional encoding，是为了告诉模型“这个向量在句子中的哪个位置”。现在同一个 Block 被反复使用，还可以告诉它：**这是第几轮了。**
+还有一个小问题。原先我们加入 positional encoding，是为了告诉模型“这个向量在句子中的哪个位置”。现在同一个 Block 被反复使用，现在还可以告诉它：这是第几轮了。
 
 因此，原论文每轮都会加入位置编码和轮数编码。好比同一位老师既能看到“这是第几题”，也能看到“这是第几遍修改”。
 
-> **补充：一轮 Encoder 的计算**
->
-> 用 $P^{(t)}$ 表示位置编码与第 $t$ 轮编码之和，省略 Dropout，采用前文的 FFN 时，可以写成：
->
-> $$
-> \begin{aligned}
-> X^{(t)} &= H^{(t-1)}+P^{(t)},\\[0.5em]
-> A^{(t)} &= \operatorname{LN}\left(X^{(t)}+\operatorname{SelfAttention}(X^{(t)})\right),\\[0.5em]
-> H^{(t)} &= \operatorname{LN}\left(A^{(t)}+\operatorname{FFN}(A^{(t)})\right).
-> \end{aligned}
-> $$
->
-> SelfAttention 这里使用多头版本；LN 和 FFN 分别作用于每个位置。各轮复用对应子层的参数，输入的表示与轮数编码则会变化。原论文也尝试了用可分离卷积代替 FFN 的版本。
+因此计算如下：
+
+用 $P^{(t)}$ 表示位置编码与第 $t$ 轮编码之和，省略 Dropout，采用前文的 FFN 时，可以写成：
+
+$$
+\begin{aligned}
+X^{(t)} &= H^{(t-1)}+P^{(t)},\text{(将上一排向量加上位置偏移)} \\[0.5em]
+A^{(t)} &= \operatorname{LN}\left(X^{(t)}+\operatorname{SelfAttention}(X^{(t)})\right),\text{(add \& norm)} \\[0.5em]
+H^{(t)} &= \operatorname{LN}\left(A^{(t)}+\operatorname{FFN}(A^{(t)})\right).
+\end{aligned}
+$$
+
+ SelfAttention 这里使用多头版本；LN 和 FFN 分别作用于每个位置。各轮复用对应子层的参数，输入的表示与轮数编码则会变化。原论文也尝试了用可分离卷积代替 FFN 的版本。
 
 上面说的“第几轮”，是整排向量更新了几次。同一轮中，各个位置可以并行计算。[原论文 §2.1](https://arxiv.org/html/1807.03819v3#S2.SS1)
 
 ---
 
-### ACT 究竟怎么算
+### ACT
 
-UT 可以提前规定循环 6 次，也可以加入 **ACT（Adaptive Computation Time，自适应计算时间）**，让不同位置分别学习什么时候停止。
+接下来的问题是，究竟循环多少次。
+
+我们当然可以提前规定循环次数固定 $= x$，但更好的方法是加入 **ACT（Adaptive Computation Time，自适应计算时间）**，让不同位置分别学习什么时候停止。
 
 只说“让模型自己决定”还是有点抽象。我们挑出第 $i$ 个位置，把一轮里需要记住的数列出来。这里 $t$ 表示内部计算的轮数，$s_i^{(t)}$ 表示本轮用于停止判断的向量。
 
