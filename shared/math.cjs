@@ -9,6 +9,19 @@ module.exports = function mathExtension() {
     extensions: [
       ...markedKatex(options).extensions,
       {
+        name: 'multilineDollarInline',
+        level: 'inline',
+        start(src) { const index = src.indexOf('$'); return index < 0 ? undefined : index },
+        tokenizer(src) {
+          // Soft line breaks belong to the formula; paragraphs and code do not.
+          const match = src.match(/^\$(?!\$)((?:\\[^\n]|[^\\$`])+?)\$(?!\$)/)
+          if (match && match[1].includes('\n') && !/\n[ \t]*\n/.test(match[1]) && match[1].trim()) {
+            return { type: 'multilineDollarInline', raw: match[0], text: match[1].trim(), displayMode: false }
+          }
+        },
+        renderer,
+      },
+      {
         name: 'dollarDisplayBlock',
         level: 'block',
         start(src) { return src.match(/(?:^|\n)(?= {0,3}\$\$(?!\$))/)?.index },

@@ -281,9 +281,13 @@ title: 公式
 
 $$\mu(N)=\begin{cases}0&\exists i,c_i>1
 \\1&\forall i,c_i=1,m\equiv0\pmod{2}
-\\-1&\forall i,c_i=1,m\equiv1\pmod{2}\end{cases}$$`
+\\-1&\forall i,c_i=1,m\equiv1\pmod{2}\end{cases}$$
+
+即 $\sum\limits_{x=1}^{n}
+\sum\limits_{y=1}^{m}
+\sum\limits_{d|gcd(x,y)}\mu(d)$。`
     input.dispatchEvent(new editor.window.Event('input', { bubbles: true }))
-    assert.equal(doc.querySelectorAll('#preview .katex').length, 3)
+    assert.equal(doc.querySelectorAll('#preview .katex').length, 4)
     assert.equal(doc.querySelectorAll('#preview .katex-error').length, 0)
   } finally { editor.close() }
 })

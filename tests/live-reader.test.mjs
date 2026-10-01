@@ -118,10 +118,15 @@ title: 公式检查
 
 $$f(x) = \max(0, x) = \begin{cases} 0 & \text{if } x < 0
 \\ x & \text{if } x \ge 0 \end{cases}$$
+
+最后答案 $=\sum\limits_{d = 1}^{min(n,m)}\mu(d)
+\left\lfloor\dfrac{n}{d}\right\rfloor
+\left\lfloor\dfrac{m}{d}\right\rfloor
+$
 `)
     await until(() => page.window.document.querySelector('#reader-heading h1')?.textContent === '公式检查')
     const root = page.window.document.getElementById('live-reader')
-    assert.equal(root.querySelectorAll('.katex').length, 5)
+    assert.equal(root.querySelectorAll('.katex').length, 6)
     assert.equal(root.querySelectorAll('.katex-error').length, 0)
   } finally { page.close() }
 })

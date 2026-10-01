@@ -6,6 +6,35 @@ import mathExtension from '../shared/math.cjs'
 
 const render = (text) => new JSDOM(new Marked(mathExtension()).parse(text)).window.document
 
+test('inline dollar formulas allow soft line breaks, including before the closing dollar', () => {
+  const formulas = [String.raw`\sum\limits_{x=1}^{n}
+\sum\limits_{y=1}^{m}
+\sum\limits_{d|gcd(x,y)}\mu(d)`, String.raw`=\sum\limits_{d = 1}^{min(n,m)}\mu(d)
+\left\lfloor\dfrac{n}{d}\right\rfloor
+\left\lfloor\dfrac{m}{d}\right\rfloor
+`]
+  for (const formula of formulas) {
+    const doc = render('即 $' + formula + '$。')
+    assert.equal(doc.querySelectorAll('.katex').length, 1)
+    assert.equal(doc.querySelectorAll('.katex-display, .katex-error').length, 0)
+    assert.equal(doc.querySelector('annotation').textContent, formula.trim())
+    doc.querySelector('.katex').remove()
+    assert.equal(doc.body.textContent.trim(), '即 。')
+  }
+})
+
+test('multiline inline math does not swallow paragraphs, code, or escaped delimiters', () => {
+  for (const input of [
+    '文本 $x\n\ny$ 后文',
+    '文本 $x\n`y` $ 后文',
+    '```tex\n$x\n+y$\n```',
+    '`$x\n+y$`',
+    '文本 \\$x\n+y\\$ 后文',
+    '文本 $x\n+y',
+    '价格 \\$5，另一项 \\$10。',
+  ]) assert.equal(render(input).querySelectorAll('.katex').length, 0, input)
+})
+
 test('all four math delimiters work alongside Chinese text and multiline matrices', () => {
   const doc = render(String.raw`中文$x_1$中文，$x_2$（说明）。\(\ell\)层。
 
