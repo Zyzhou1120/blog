@@ -9,4 +9,4 @@ categories:
 
 ### Encoder
 
-**Encoder** 
+**Encoder** 中的结构和需要解决的问题和上一节都差不多。不过增加了一些内容去
