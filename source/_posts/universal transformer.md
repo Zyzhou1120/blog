@@ -5,6 +5,7 @@ tags: []
 categories:
   - - 深度学习
   - - 论文
+priority: 1
 ---
 > 上一节：[transformer](/blog/read/?post=transformer.md)。
 
