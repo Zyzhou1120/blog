@@ -87,11 +87,11 @@ $$
 
 我们当然可以提前规定循环次数固定 $= x$，但更好的方法是加入 **ACT（Adaptive Computation Time，自适应计算时间）**，让不同位置分别学习什么时候停止。
 
-只说“让模型自己决定”还是有点抽象。我们挑出第 $i$ 个位置，把一轮里需要记住的数列出来。这里 $t$ 表示内部计算的轮数，$s_i^{(t)}$ 表示本轮用于停止判断的向量。
+#### 停止分数
 
-#### 先算一个停止分数
+我们挑出第 $i$ 个位置，假设这一轮输出的向量是 $s_i^{(t)}$ 。
 
-在这个向量后面接一个很小的预测头：线性变换，再做 sigmoid。
+在这个向量上可以接一个很小的预测头：线性变换，再做 sigmoid。
 
 $$
 p_i^{(t)}=\operatorname{sigmoid}\left(w_h^{\mathsf T}s_i^{(t)}+b_h\right),
@@ -101,9 +101,10 @@ $$
 
 $w_h,b_h$ 是需要训练的参数，在不同位置和不同轮次复用。sigmoid 保证 $p_i^{(t)}$ 落在 $0$ 到 $1$ 之间。
 
-这个数控制计算何时结束，不代表“答案有多大概率正确”。计算时也不用按它随机抽签，而是把它加入累计值。[官方实现](https://github.com/tensorflow/tensor2tensor/blob/master/tensor2tensor/models/research/universal_transformer_util.py)
+这个数控制计算何时结束，称为 **停止分数**。计算时也不用按它随机抽签，而是把它加入累计值。[官方实现](https://github.com/tensorflow/tensor2tensor/blob/master/tensor2tensor/models/research/universal_transformer_util.py)
 
-#### 累加到阈值就停
+注意，$\left(w_h^{\mathsf T}s_i^{(t)}+b_h\right)$ 只是为了训练的一个简单线性变化，你当然也可以将其换为更复杂的变换。
+
 
 令前 $t$ 轮停止分数的和为：
 
