@@ -27,22 +27,30 @@ $$
 
 [![残差连接](<https://raw.githubusercontent.com/Zyzhou1120/blog/main/source/images/uploads/1e6dd8bdc94559aa425d37e3e737a81125c67ca2960637513d80fd61b093175b.png>)](<https://raw.githubusercontent.com/Zyzhou1120/blog/main/source/images/uploads/1e6dd8bdc94559aa425d37e3e737a81125c67ca2960637513d80fd61b093175b.png>)
 
-在原始 Transformer 中，残差相加之后进行层归一化（LayerNorm，简称 LN）。对于序列中的每个 token，分别沿它的特征维度计算均值和方差。假设一个 token 的向量是 $x\in\mathbb{R}^{d}$：
+做完残差连接后，需要做一层 normalization，现在一般使用的是 Layer Norm。是计算同一个样本的不同维度的平均值 $m$ 和标准差 $\sigma$，然后计算：
 
-$$
-\mu=\frac{1}{d}\sum_{i=1}^{d}x_i,
-\qquad
-\sigma^2=\frac{1}{d}\sum_{i=1}^{d}(x_i-\mu)^2.
-$$
+$$x'_i = \frac{x_i-m}{\sigma}$$
 
-然后计算：
+这样可以有效防止数值膨胀，减轻梯度消失与梯度爆炸风险。
 
-$$
-\operatorname{LN}(x)_i
-=\gamma_i\frac{x_i-\mu}{\sqrt{\sigma^2+\epsilon}}+\beta_i.
-$$
-
-其中 $\epsilon$ 是用于数值稳定的小常数，$\gamma_i,\beta_i$ 是可以学习的缩放和偏移参数。归一化能帮助控制表示的数值尺度、稳定训练，但不能保证深层网络中完全不发生梯度消失或爆炸。
+> **补充：LayerNorm 的完整计算**
+>
+> 在原始 Transformer 中，残差相加之后进行层归一化（LayerNorm，简称 LN）。对于序列中的每个 token，分别沿它的特征维度计算均值和方差。假设一个 token 的向量是 $x\in\mathbb{R}^{d}$：
+>
+> $$
+> \mu=\frac{1}{d}\sum_{i=1}^{d}x_i,
+> \qquad
+> \sigma^2=\frac{1}{d}\sum_{i=1}^{d}(x_i-\mu)^2.
+> $$
+>
+> 然后计算：
+>
+> $$
+> \operatorname{LN}(x)_i
+> =\gamma_i\frac{x_i-\mu}{\sqrt{\sigma^2+\epsilon}}+\beta_i.
+> $$
+>
+> 其中 $\epsilon$ 是用于数值稳定的小常数，$\gamma_i,\beta_i$ 是可以学习的缩放和偏移参数。归一化能帮助控制表示的数值尺度、稳定训练，但不能保证深层网络中完全不发生梯度消失或爆炸。
 
 接下来，把 LN 的输出送入前文介绍的**全连接网络**。在这里，它称为逐位置前馈网络（Feed-Forward Network，简称 FFN）：每个位置分别经过同一个网络，不在这一步混合不同位置的信息。
 
