@@ -6,14 +6,14 @@ export function renderArticleNavigation(article) {
   const aside = document.getElementById('aside-content')
   document.getElementById('reader-toc')?.remove()
   document.getElementById('reader-toc-mobile')?.remove()
+  document.getElementById('card-toc')?.remove()
   aside?.classList.remove('article-navigation')
   article.classList.add('reader-prose')
-  const headings = [...article.querySelectorAll('h1, h2, h3, h4, h5, h6')]
-  if (!headings.length) return
+  const allHeadings = [...article.querySelectorAll('h1, h2, h3, h4, h5, h6')]
 
   // Preserve built heading anchors; give live headings stable, unique anchors.
   const used = new Set([...document.querySelectorAll('[id]')].map(node => node.id))
-  for (const heading of headings) {
+  for (const heading of allHeadings) {
     if (heading.id) continue
     const base = 'section-' + (heading.textContent.trim().replace(/\s+/g, '-').replace(/[^\p{L}\p{N}_-]/gu, '') || 'heading')
     let id = base, index = 2
@@ -21,6 +21,8 @@ export function renderArticleNavigation(article) {
     heading.id = id
     used.add(id)
   }
+  const headings = allHeadings.filter(heading => heading.tagName !== 'H4')
+  if (!headings.length) return
   const minLevel = Math.min(...headings.map(node => Number(node.tagName[1])))
   function navigation() {
     const nav = document.createElement('nav')
@@ -78,7 +80,7 @@ export function renderArticleNavigation(article) {
   if (!restoredAnchor && location.hash) {
     let id
     try { id = decodeURIComponent(location.hash.slice(1)) } catch { /* Ignore a malformed link. */ }
-    const heading = headings.find(node => node.id === id)
+    const heading = allHeadings.find(node => node.id === id)
     if (heading) {
       restoredAnchor = true
       heading.scrollIntoView?.({ block: 'start' })
