@@ -11,9 +11,9 @@ categories:
 
 ### Encoder
 
-**Encoder（编码器）** 接收一排向量，输出的仍是一排向量。与上一节一样，每个位置都可以通过自注意力结合其他位置的信息；在此基础上，我们再加入残差连接和归一化，让多层网络更容易训练。
+**Encoder（编码器）** 接收一排向量，输出的仍是一排向量。与上一节一样，每个位置都可以通过自注意力结合其他位置的信息；在此基础上，我们再加入一些别的结构，让多层网络更容易训练。
 
-Encoder 由若干个 Block 堆叠而成，每个 Block 包含注意力、前馈网络等子层。有些资料也把整个 Block 称为一个 Transformer layer，阅读时需要留意它指的是哪个层级。
+Encoder 由若干个 Block 堆叠而成，每个 Block 包含许多子层。
 
 [![Encoder 的多个 Block](<https://raw.githubusercontent.com/Zyzhou1120/blog/main/source/images/uploads/9ad7d77facb8adf9a57f65adacac28b06afa5875cf9de459a7efc90f48f97f55.png>)](<https://raw.githubusercontent.com/Zyzhou1120/blog/main/source/images/uploads/9ad7d77facb8adf9a57f65adacac28b06afa5875cf9de459a7efc90f48f97f55.png>)
 
@@ -23,7 +23,7 @@ $$
 x+F(x).
 $$
 
-这条直接相加的路径可以传递原有表示，也为梯度提供更直接的传播路径，使深层网络更容易优化。后面的前馈子层也使用残差连接，每次相加的都是**当前子层的输入和输出**。
+这条直接相加的路径可以传递原有表示，也为梯度提供更直接的传播路径，使深层网络更容易优化。
 
 [![残差连接](<https://raw.githubusercontent.com/Zyzhou1120/blog/main/source/images/uploads/1e6dd8bdc94559aa425d37e3e737a81125c67ca2960637513d80fd61b093175b.png>)](<https://raw.githubusercontent.com/Zyzhou1120/blog/main/source/images/uploads/1e6dd8bdc94559aa425d37e3e737a81125c67ca2960637513d80fd61b093175b.png>)
 
@@ -100,15 +100,17 @@ token 不一定是一个汉字，也可能是词、子词或其他文本片段�
 
 ### cross-attention
 
-实际上，现在 LLM 主流的结构，gpt 所使用的也恰好是被抹掉中间这一块的 decoder-only 结构。
+前面暂时略去了 Decoder 与 Encoder 交互的部分。以翻译为例，Decoder 在决定下一个译文词时，除了参考已经生成的译文，还需要查看原句。**交叉注意力（cross-attention）** 就负责从 Encoder 的输出中提取当前需要的信息。
+
+但实际上，现在 LLM 主流的结构，gpt 所使用的是抹掉这一块的 decoder-only 结构。
 
 毕竟无论是什么问题，本质都可以稍加变化将其变成一个概率接龙问题，需要的只是稍稍微调。
 
-但是虽然现在的 LLM 已经不用了，但中间被抹掉的和 encoder 相关这部分还是在多模态部分有广泛应用，所以还是简单提一下。
+但是虽然现在的 LLM 已经不用了，但 cross-attention 被抹掉的和 encoder 相关这部分还是在多模态部分有广泛应用，所以还是简单提一下。
 
 ![image](<https://raw.githubusercontent.com/Zyzhou1120/blog/main/source/images/uploads/75e52285a24a2430161156eb243efe475dafe5370d4a5251ef66a4d9f803b848.png>)
 
-只用在中间用 decoder 的 q 以及 encoder 一些层的 k 做若干次类似操作即可。
+$q$ 来自 Decoder 当前交叉注意力子层的输入，$k$ 来自 Encoder 的输出, 用 \(q^i\) 与各个 \(k^j\) 计算缩放点积分数，经 softmax 得到权重，再对各个 \(v^j\) 加权求和即可。
 
 ![image](<https://raw.githubusercontent.com/Zyzhou1120/blog/main/source/images/uploads/813cf0b5d2170c8ec5f4a27f53477b4a0bc76a95f98153f86b50a0fd1d1f060e.png>)
 
