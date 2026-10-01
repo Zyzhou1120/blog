@@ -5,7 +5,7 @@ tags: []
 categories:
   - - loop transformer
   - - 论文
-priority: 1
+priority: 2
 ---
 > 上一节：[transformer](/blog/read/?post=transformer.md)。
 
