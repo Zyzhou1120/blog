@@ -5,6 +5,7 @@ tags: []
 categories:
   - - loop transformer
   - - 论文
+priority: 3
 ---
 
 > 前文：[universal transformer](/blog/read/?post=universal%20transformer.md)、[参数共享的三种排列](/blog/read/?post=Lessons%20on%20Parameter%20Sharing%20across%20Layers%20in%20Transformers.md)、[Huginn](/blog/read/?post=Huginn.md)。
