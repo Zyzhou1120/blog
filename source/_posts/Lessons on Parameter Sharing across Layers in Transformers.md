@@ -5,6 +5,7 @@ tags: []
 categories:
   - - loop transformer
   - - 论文
+priority: 1
 ---
 
 > 前文：[universal transformer](/blog/read/?post=universal%20transformer.md)。
