@@ -7,7 +7,7 @@ categories:
   - - 论文
 ---
 
-> 前文：[universal transformer](/blog/read/?post=universal%20transformer.md)、[Huginn](/blog/read/?post=Huginn.md)。
+> 前文：[universal transformer](/blog/read/?post=universal%20transformer.md)。
 >
 > 本篇介绍 Sho Takase 和 Shun Kiyono 的论文 [Lessons on Parameter Sharing across Layers in Transformers](https://aclanthology.org/2023.sustainlp-1.5/)，以 SustaiNLP 2023 发表版本为准。
 
@@ -257,19 +257,19 @@ $$
 
 > 补充：本文的证据主要来自从头训练的模型，包括翻译、语音识别和语言建模。论文没有证明某一种共享顺序适用于所有大模型，也没有验证在测试时任意增加层数都会持续改善结果。
 
-### 放回 UT 和 Huginn 这条线上
+### 从 UT 的参数共享继续往下走
 
-现在再看前面的文章，就能把几个问题分开了。
+接上前文的 UT，我们现在可以把几个问题分开。
 
 UT 让我们看到，同一个更新规则可以反复作用于一排向量；加上 ACT，还可以讨论各个位置什么时候停止。
 
 本篇则把“共享几套参数”和“计算经过几层”分开考虑。既可以共享一套，也可以共享一组；同样一组参数，还能安排成不同的顺序。
 
-Huginn 又往推理阶段走了一步：训练时就围绕变化的循环深度设计模型，推理时可以在输出 token 之前增加内部计算。它的循环核心包含多个各有参数的层，**从整组重复这一点看，和这里的 CYCLE 有相似之处**。但 Huginn 还有每轮注入输入表示、特定的训练方式等设计，不能只用一个层排列概括。
-
 所以，如果我们现在手里有一份固定的参数预算，可以先问：这些参数要做成几套 Block，每套多宽，然后让它们以什么顺序、实际执行多少次？
 
 这篇论文给出的三个简单排列，就是可以从这里开始尝试的办法。
+
+> 延伸阅读：[Huginn](/blog/read/?post=Huginn.md) 进一步讨论推理时增加内部计算。它的循环核心包含多个各有参数的层，从整组重复这一点看，和这里的 CYCLE 有相似之处；同时，它还引入了每轮注入输入表示、围绕变化的循环深度训练等设计。理解本篇后，可以继续看它怎样把参数共享用于推理阶段。
 
 ### 参考资料
 
