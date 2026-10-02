@@ -15,15 +15,12 @@ priority: 2
 
 再看结构。假设模型有 6 个 Block，那么无论句子长短、某个位置是否需要更多次信息交换，每个位置都走这 6 层。序列变长后，注意力计算量确实会增加，但**每个位置经过的变换层数仍然固定**。
 
-这就引出一个问题：能不能让模型学会一套可以重复使用的处理方法？能不能根据输入，决定这套方法要用几次？前者减少需要分别保存的 Block 参数，后者让不同位置有机会使用不同的计算轮数。[作者介绍](https://research.google/blog/moving-beyond-translation-with-the-universal-transformer/)
+这就引出一个问题：**能不能让模型学会一套可以重复使用的处理方法？能不能根据输入，决定这套方法在不同位置分别要用几次？**[作者介绍](https://research.google/blog/moving-beyond-translation-with-the-universal-transformer/)
 
-Universal Transformer（简称 UT）于是把原先堆叠的 Block 改为共享参数的循环计算，并进一步尝试用 ACT 决定循环次数。前者让同一个更新规则反复使用，后者让计算轮数可以变化。在本论文中作者钦定 $k=1$，即只用一个 block 来循环若干次。
+Universal Transformer（简称 UT）于是把原先堆叠的 block 改为共享参数的循环计算，并进一步尝试用 ACT 决定循环次数。在本论文中作者钦定 $k=1$，即只用一个 block 来循环若干次。
 
+> ## 注意！
 如果 Block 宽度不变，共享参数可以减少模型的总参数量。但原论文为了和普通 Transformer base 做总参数量相近的比较，还把 UT base 的共享 Block 加宽：隐藏维度从 $512$ 增至 $1024$，FFN 中间维度从 $2048$ 增至 $4096$。因此，**共享参数不保证这个实验配置的总参数量更小，也不保证它算得更少**。[作者代码中的 UT base 配置](https://github.com/tensorflow/tensor2tensor/blob/master/tensor2tensor/models/research/universal_transformer.py#L2528-L2546)
-
-此方法不一定严格在所有任务中都比原式 transformer 更优秀。
-
-> 这里说的是原论文实验中观察到的短板，不是说 Transformer 在理论上绝对不能复制字符串。能读到所有位置的信息，也不等于已经学会了可以推广到更长输入的规则。
 
 ---
 
