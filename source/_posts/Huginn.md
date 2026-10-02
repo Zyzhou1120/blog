@@ -5,6 +5,7 @@ tags: []
 categories:
   - - loop transformer
   - - 论文
+priority: 3
 ---
 
 > 上一节：[Lessons on Parameter Sharing across Layers in Transformers](/blog/read/?post=Lessons%20on%20Parameter%20Sharing%20across%20Layers%20in%20Transformers.md)。
