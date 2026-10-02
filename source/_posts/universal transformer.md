@@ -15,11 +15,11 @@ priority: 2
 
 再看结构。假设模型有 6 个 Block，那么无论句子长短、某个位置是否需要更多次信息交换，每个位置都走这 6 层。序列变长后，注意力计算量确实会增加，但**每个位置经过的变换层数仍然固定**。
 
-这就引出一个问题：能不能让模型学会一套可以重复使用的处理方法？能不能根据输入，决定这套方法要用几次？这样子就可以节省大量参数量，且可以当遇到很简单的输入时候，节省运算量，遇到困难输入的时候，自动增加运算。 [作者介绍](https://research.google/blog/moving-beyond-translation-with-the-universal-transformer/)
+这就引出一个问题：能不能让模型学会一套可以重复使用的处理方法？能不能根据输入，决定这套方法要用几次？前者减少需要分别保存的 Block 参数，后者让不同位置有机会使用不同的计算轮数。[作者介绍](https://research.google/blog/moving-beyond-translation-with-the-universal-transformer/)
 
 Universal Transformer（简称 UT）于是把原先堆叠的 Block 改为共享参数的循环计算，并进一步尝试用 ACT 决定循环次数。前者让同一个更新规则反复使用，后者让计算轮数可以变化。在本论文中作者钦定 $k=1$，即只用一个 block 来循环若干次。
 
-此方法可以大大减少参数量（未必减少计算量）。
+如果 Block 宽度不变，共享参数可以减少模型的总参数量。但原论文为了和普通 Transformer base 做总参数量相近的比较，还把 UT base 的共享 Block 加宽：隐藏维度从 $512$ 增至 $1024$，FFN 中间维度从 $2048$ 增至 $4096$。因此，**共享参数不保证这个实验配置的总参数量更小，也不保证它算得更少**。[作者代码中的 UT base 配置](https://github.com/tensorflow/tensor2tensor/blob/master/tensor2tensor/models/research/universal_transformer.py#L2528-L2546)
 
 此方法不一定严格在所有任务中都比原式 transformer 更优秀。
 
@@ -173,7 +173,9 @@ R_i, & t=N_i.
 \end{cases}
 $$
 
-**训练过程中会将预测头训练出来，在推理过程中预测头参数不变，但根据不同的输入向量，积累分数也不同，因此推理过程中循环的轮次也不一样，也是根据难度变化。**
+**训练过程中会将预测头训练出来；推理时它的参数不变，但不同输入位置可能得到不同的停止分数，因此实际循环轮数也可能不同。**
+
+这里的“少算几轮”是相对于使用**同样宽度、固定循环次数**的 UT。它不等于比普通 Transformer 更省计算。以原论文的 UT base 为例，共享 Block 比普通 Transformer base 更宽；即使 ACT 让某个位置早停，每轮也要执行更大的矩阵乘法。究竟能不能省下总计算量，还要结合实际轮数、序列长度和实现测量。论文在 WMT14 英德翻译实验中报告的 UT base 结果**没有启用 ACT**，不能用那个实验来证明“简单输入计算更少”。[原论文 §3.6、Table 7](https://arxiv.org/pdf/1807.03819#page=9)
 
 ---
 ### 一些计算优化
