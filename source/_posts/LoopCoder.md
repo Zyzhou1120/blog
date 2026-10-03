@@ -62,7 +62,7 @@ o_{\ell,a,i}
 \end{aligned}
 $$
 
-和之前几节差不多，$g_{\ell,a,i}$ 由一个预测头训练得来。
+和之前几节差不多，$g_{\ell,a,i}$ 由一个门控头训练得来。
 
 $$
 g_{\ell,a,i}
@@ -71,166 +71,13 @@ g_{\ell,a,i}
 \sigma(s)=\frac{1}{1+e^{-s}}.
 $$
 
-训练时，门控参数和模型其他参数一起通过最终预测损失更新。 以预测下一个 token 的训练为例，把全部门控参数记为 $\phi=\{w_{\ell,a},b_{\ell,a}\}$，有效预测位置集合记为 $\mathcal T$，损失可写成：
+依旧使用交叉熵来计算 loss：
 
 $$
 \mathcal L_{\mathrm{LM}}
 =-\frac{1}{|\mathcal T|}\sum_{i\in\mathcal T}
 \log p_{\theta,\phi}(x_{i+1}\mid x_{\le i}).
 $$
-
-预测出错的信号沿后面的层传回到门控。我们只看一个头、一个位置，暂时省略下标：
-
-$$
-o=g\,o_{\mathrm g}+(1-g)\,o_{\mathrm l}.
-$$
-
-把从后面传回来的梯度记为 $\delta=\nabla_o\mathcal L$，按链式法则，这个位置对门控参数的梯度贡献是：
-
-$$
-\begin{aligned}
-\beta&=\bigl[\delta^\top(o_{\mathrm g}-o_{\mathrm l})\bigr]g(1-g),\\
-\nabla_w\mathcal L\big|_i&=\beta\,q^{(2)},\\
-\frac{\partial\mathcal L}{\partial b}\bigg|_i&=\beta.
-\end{aligned}
-$$
-
-这里 $\beta$ 是一个标量。各个有效位置、各个样本的贡献累积起来，再由优化器更新 $w,b$。如果一次调整让最终预测更准确，训练就会推动门控朝这个方向变化，逐渐学到什么时候多用第一轮的信息、什么时候多用第二轮的信息。这几步是对门控计算的链式法则展开，不是额外添加的训练目标。
-
-每个头、每个位置都完成上面的计算后，在同一个 token 位置把各个头的输出拼起来，经过多头注意力的输出投影，再接上残差和前馈网络。所有位置的结果组成 $X_\ell^{(2)}$，继续送进下一层。把第 $\ell$ 层这整套计算记为 $G_\ell^{(2)}$，逐层连接就是：
-
-$$
-\begin{aligned}
-X_1^{(2)}&=G_1^{(2)}\bigl(H^{(1)};K_1^{(1)},V_1^{(1)}\bigr),\\
-X_2^{(2)}&=G_2^{(2)}\bigl(X_1^{(2)};K_2^{(1)},V_2^{(1)}\bigr),\\
-&\ \vdots\\
-X_{80}^{(2)}&=G_{80}^{(2)}\bigl(X_{79}^{(2)};K_{80}^{(1)},V_{80}^{(1)}\bigr).
-\end{aligned}
-$$
-
-80 层走完，再做输出归一化，得到 $H^{(2)}$。所以，**沿第二轮不断更新的是 $X_\ell^{(2)}$；第一轮留下的 $C^{(1)}$ 在这轮保持不变，供对应层读取。两份信息的融合发生在每层的门控注意力输出那里。**
-
-> 补充：论文式 (1) 写的是 $H^{(2)}=F_\theta(E+\operatorname{Shift}(H^{(1)},1))$，但 §2.1 末尾又说明实现没有采用 token shifting；作者公开代码则直接沿用上一轮的 `hidden_states`，既没有 Shift，也没有在轮间再次加上 $E$。论文公式与公开实现存在差异，因此本节按代码解释实际连接方式，上面的两轮公式是对代码流程的概括。[论文 §2.1](https://aclanthology.org/2026.findings-acl.796.pdf#page=2)、[官方代码，固定版本](https://huggingface.co/IQuestLab/IQuest-Coder-V1-40B-Loop-Instruct/blob/61e8589747f6987ec7725e4ffe205f7a84561bd2/modeling_iquestloopcoder.py)
-
-这一组共有 80 个 Block，循环两轮，实际经过的 Block 计算次数就是：
-
-$$
-80\times2=160.
-$$
-
-第 1 层和第 2 层仍然有不同的参数；共享的是“第一轮第 1 层”和“第二轮第 1 层”，其他层也是如此。
-
-因此，模型不用保存 160 套不同层的权重。但 160 次 Block 计算仍然要做，而且第二轮的注意力结构还有额外处理。**参数省下来了，计算没有免费。**
-
-> 补充：论文使用 40B-A80B 的命名。理解这里的规模时，抓住约 40B 权重和两轮计算即可，不要把它读成 MoE 中“从总参数里选出 80B 专家参数”，也不要据此推断它和普通 80B 模型的 FLOPs、显存或速度完全相同。作者的[模型说明](https://github.com/IQuestLab/IQuest-Coder-V1)列出了 80 层、两次迭代、5120 隐藏维度和 128K 上下文。
-
-### 第二轮可以读取两份信息
-
-如果只把第一轮最后的输出送回入口，第一轮各层算过的信息，就都要靠这份输出继续传下去。
-
-LoopCoder 还保留了一条通路：**每一层在第一轮算出的 Key 和 Value，会留给这一层的第二轮使用。**
-
-所以第二轮的注意力有两份可读的信息：
-
-- 第一轮留下的 $K^{(1)},V^{(1)}$：覆盖较长的可见上下文；
-- 第二轮当前计算的 $K^{(2)},V^{(2)}$：反映这一轮已经处理过的内容。
-
-两份信息都要用，但各用多少，由模型自己算。
-
-#### 先分别做两次 attention
-
-我们只看某一层、某一个注意力头，并省略层号和头号。
-
-上标 $(1),(2)$ 表示循环轮次，下标 $i,j$ 表示 token 位置。第二轮第 $i$ 个位置的输入向量，经过该层归一化后记为 $z_i^{(2)}$。再乘投影矩阵，得到：
-
-$$
-\begin{aligned}
-q_i^{(2)}&=W_Qz_i^{(2)},\\
-k_i^{(2)}&=W_Kz_i^{(2)},\\
-v_i^{(2)}&=W_Vz_i^{(2)}.
-\end{aligned}
-$$
-
-这几个都是向量。设这个头的维度为 $d_h$，那么 $q_i^{(2)},k_i^{(2)},v_i^{(2)}\in\mathbb R^{d_h}$。第一轮的 $k_j^{(1)},v_j^{(1)}$ 用相同的投影参数计算，只是输入状态来自第一轮。
-
-为看清信息从哪来，下面省略 RoPE 的位置变换。把全局分支在位置 $i$ 能读的 token 集合记为 $\mathcal G_i$，注意力权重为：
-
-$$
-a_{ij}^{\mathrm g}
-=
-\frac{\exp\bigl((q_i^{(2)})^\top k_j^{(1)}/\sqrt{d_h}\bigr)}
-{\displaystyle\sum_{u\in\mathcal G_i}
-\exp\bigl((q_i^{(2)})^\top k_u^{(1)}/\sqrt{d_h}\bigr)}.
-$$
-
-先拿第二轮的 Query，与第一轮各位置的 Key 算相似度；再在可读位置之间做 softmax。最后把第一轮的 Value 加权起来：
-
-$$
-o_i^{\mathrm g}
-=\sum_{j\in\mathcal G_i}a_{ij}^{\mathrm g}v_j^{(1)}.
-$$
-
-这就是论文的 **global attention**。
-
-另一份结果也是同样的算法，只不过 Key 和 Value 换成第二轮的，并在局部分支能读的集合 $\mathcal L_i$ 上归一化：
-
-$$
-\begin{aligned}
-a_{ij}^{\mathrm l}
-&=\operatorname{softmax}_{j\in\mathcal L_i}
-\left(\frac{(q_i^{(2)})^\top k_j^{(2)}}{\sqrt{d_h}}\right),\\
-o_i^{\mathrm l}
-&=\sum_{j\in\mathcal L_i}a_{ij}^{\mathrm l}v_j^{(2)}.
-\end{aligned}
-$$
-
-这就是 **local attention**。注意，这两次 softmax 是分别做的，最后还要再合并结果。
-
-比如正在补一个函数，较远处定义了一个变量，最近几行又对它做了处理。第二轮可以同时利用第一轮保存的远处信息，以及这一轮更新后的附近信息。这个例子只是帮助理解两条通路，不表示每个头都被规定了“专门找变量”这样的任务。
-
-> 补充：这里的 global 不表示能看到未来 token。公开代码给全局分支传入因果 mask；局部分支维护一个有限长度的缓存，代码默认窗口为 64。论文式 (3) 简写为第二轮的 $K_{<t},V_{<t}$，公开代码的因果缓存还可包含当前已输入位置，所以正文用“可读位置集合”来表述。预测下一个 token 时，当前输入 token 已经给定，读取它不算偷看答案。这些缓存和 mask 细节以[上述官方代码](https://huggingface.co/IQuestLab/IQuest-Coder-V1-40B-Loop-Instruct/blob/61e8589747f6987ec7725e4ffe205f7a84561bd2/modeling_iquestloopcoder.py)为准。
-
-#### 再决定两份结果各占多少
-
-现在手里有 $o_i^{\mathrm g}$ 和 $o_i^{\mathrm l}$ 两个向量。最终输出是：
-
-$$
-o_i=g_i\,o_i^{\mathrm g}+(1-g_i)\,o_i^{\mathrm l}.
-$$
-
-$g_i$ 是一个 $0$ 到 $1$ 之间的数。越接近 $1$，越偏向第一轮的全局信息；越接近 $0$，越偏向第二轮的局部信息。
-
-这个数不是人工指定的。按公开实现，每一层的每个头都有一个可学习的向量 $w_g\in\mathbb R^{d_h}$ 和偏置 $b_g\in\mathbb R$，用当前 Query 计算：
-
-$$
-g_i=\sigma\bigl(w_g^\top q_i^{(2)}+b_g\bigr),
-\qquad
-\sigma(x)=\frac{1}{1+e^{-x}}.
-$$
-
-一个头在一个位置得到一个标量门值，再把它用到这个头的整个输出向量上。不同层、不同头、不同位置，可以有不同的取舍。
-
-用一个简单例子看，假设：
-
-$$
-o_i^{\mathrm g}=\begin{bmatrix}2\\0\end{bmatrix},
-\qquad
-o_i^{\mathrm l}=\begin{bmatrix}0\\4\end{bmatrix},
-\qquad g_i=0.75.
-$$
-
-那么：
-
-$$
-o_i
-=0.75\begin{bmatrix}2\\0\end{bmatrix}
-+0.25\begin{bmatrix}0\\4\end{bmatrix}
-=\begin{bmatrix}1.5\\1\end{bmatrix}.
-$$
-
-两份信息都保留下来，只是比例不同。各个头算完后，再接回多头注意力的输出投影、残差和后面的前馈计算。
-
-**这个门控制“读取哪一轮的信息”，不控制“是否停止循环”。** 它不是 Ouro 的退出概率，也不是 Universal Transformer 中 ACT 的停止分数。LoopCoder 这里仍然固定做两轮。[论文 §2.1，式 (2)–(5)](https://aclanthology.org/2026.findings-acl.796.pdf#page=2)
 
 ### 为什么不从随机参数开始训练
 
