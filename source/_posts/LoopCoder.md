@@ -45,30 +45,32 @@ $$
 
 然后取出**第一轮同一层**保存的 $K_\ell^{(1)},V_\ell^{(1)}$。
 
-本轮的 Query 分别去读两份 Key 和 Value，得到两份注意力输出：
+下面具体看第 $\ell$ 层、第 $a$ 个注意力头、第 $i$ 个 token。下标 $a$ 是头号，$i$ 是位置；这个位置送入门控头的第二轮 Query 记为 $q_{\ell,a,i}^{(2)}\in\mathbb R^{d_h}$。$K_{\ell,a}^{(1)},V_{\ell,a}^{(1)}$ 保存第一轮这个头在各位置的 Key 和 Value；$K_{\ell,a}^{(2)},V_{\ell,a}^{(2)}$ 则来自第二轮。
+
+用当前这一个 Query 分别读取两份 KV，得到两个 $d_h$ 维输出向量：
 
 $$
 \begin{aligned}
-O_{\ell,\mathrm g}
+o_{\ell,a,i}^{\mathrm g}
 &=\operatorname{Attention}
-\bigl(Q_\ell^{(2)},K_\ell^{(1)},V_\ell^{(1)}\bigr),\\
-O_{\ell,\mathrm l}
+\bigl(q_{\ell,a,i}^{(2)},K_{\ell,a}^{(1)},V_{\ell,a}^{(1)}\bigr),\\
+o_{\ell,a,i}^{\mathrm l}
 &=\operatorname{Attention}
-\bigl(Q_\ell^{(2)},K_\ell^{(2)},V_\ell^{(2)}\bigr).
+\bigl(q_{\ell,a,i}^{(2)},K_{\ell,a}^{(2)},V_{\ell,a}^{(2)}\bigr).
 \end{aligned}
 $$
 
-模型根据当前 Query 算出门值 $g_\ell$，把两份结果加权起来：
+上标 $\mathrm g,\mathrm l$ 分别表示 global、local 两条分支；这两份输出都对应同一个头、同一个 token。每条分支只读取自己允许访问的位置，具体限制下一节再展开。模型根据当前 Query 算出一个标量门值 $g_{\ell,a,i}$，把两个向量加权起来：
 
 $$
-O_\ell
-=g_\ell\odot O_{\ell,\mathrm g}
-+(1-g_\ell)\odot O_{\ell,\mathrm l}.
+\begin{aligned}
+o_{\ell,a,i}
+&=g_{\ell,a,i}\,o_{\ell,a,i}^{\mathrm g}\\
+&\quad +(1-g_{\ell,a,i})\,o_{\ell,a,i}^{\mathrm l}.
+\end{aligned}
 $$
 
-$\odot$ 表示逐元素相乘。公开实现中，每个头在每个 token 位置得到一个标量门值，再广播到这个头的各个输出维度。
-
-具体看第 $\ell$ 层、第 $a$ 个注意力头、第 $i$ 个 token。把送入门控头的第二轮 Query 记为 $q_{\ell,a,i}^{(2)}\in\mathbb R^{d_h}$，这个头有一个可学习的向量 $w_{\ell,a}\in\mathbb R^{d_h}$ 和偏置 $b_{\ell,a}\in\mathbb R$。门值就是：
+这里是标量乘向量：这个位置的门值同时作用于这个头的各个输出维度。每个头都有自己的可学习向量 $w_{\ell,a}\in\mathbb R^{d_h}$ 和偏置 $b_{\ell,a}\in\mathbb R$，用来计算门值：
 
 $$
 g_{\ell,a,i}
@@ -77,7 +79,7 @@ g_{\ell,a,i}
 \sigma(s)=\frac{1}{1+e^{-s}}.
 $$
 
-也就是把 Query 乘一个向量，压成一个数，再用 sigmoid 压到 $0\sim1$。同一层同一个头的 $w,b$ 在各个位置共用，但不同位置的 Query 不同，所以门值可以不同。上面的 $g_\ell$ 是这一层所有头、所有位置的门值的合称。
+也就是把 Query 乘一个向量，压成一个数，再用 sigmoid 压到 $0\sim1$。**同一层、同一个头的 $w_{\ell,a},b_{\ell,a}$ 在所有 token 位置共用，所以参数没有 $i$ 下标；不同位置的 Query 不同，算出的 $g_{\ell,a,i}$ 可以不同，所以门值保留 $i$ 下标。** 不同头各自学习不同的门控参数，因此参数和门值都保留 $a$ 下标。
 
 **训练时，门控参数和模型其他参数一起通过最终预测损失更新。** 以预测下一个 token 的训练为例，把全部门控参数记为 $\phi=\{w_{\ell,a},b_{\ell,a}\}$，有效预测位置集合记为 $\mathcal T$，损失可写成：
 
@@ -105,7 +107,7 @@ $$
 
 这里 $\beta$ 是一个标量。各个有效位置、各个样本的贡献累积起来，再由优化器更新 $w,b$。如果一次调整让最终预测更准确，训练就会推动门控朝这个方向变化，逐渐学到什么时候多用第一轮的信息、什么时候多用第二轮的信息。这几步是对门控计算的链式法则展开，不是额外添加的训练目标。
 
-合并后的结果经过多头注意力的输出投影，接上残差和前馈网络，得到 $X_\ell^{(2)}$，继续送进下一层。把第 $\ell$ 层这整套计算记为 $G_\ell^{(2)}$，逐层连接就是：
+每个头、每个位置都完成上面的计算后，在同一个 token 位置把各个头的输出拼起来，经过多头注意力的输出投影，再接上残差和前馈网络。所有位置的结果组成 $X_\ell^{(2)}$，继续送进下一层。把第 $\ell$ 层这整套计算记为 $G_\ell^{(2)}$，逐层连接就是：
 
 $$
 \begin{aligned}
