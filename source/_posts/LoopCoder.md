@@ -27,31 +27,27 @@ $$
 E=[e_1,\ldots,e_n]\in\mathbb R^{d\times n}.
 $$
 
-$E$ 是最开始的输入表示。把整组 Transformer Block 记为 $F_\theta$，$\theta$ 是它们的参数。第一轮从 $E$ 开始，得到：
+$E$ 是最开始的输入表示。下面按作者公开代码的执行流程来看两轮计算。$\theta$ 表示两轮共享的 Transformer 主体参数，上标 $(1),(2)$ 表示执行第几轮。
+
+第一轮从 $E$ 开始，把整组 Block 走一遍，得到：
 
 $$
-H^{(1)}=F_\theta(E).
+H^{(1)}=F_\theta^{(1)}(E).
 $$
 
-$H^{(1)}$ 还是一排 $d$ 维向量。它们已经经过一轮处理，但还不是最终输出的代码文本。
+$H^{(1)}$ 还是一排 $d$ 维向量，尚未变成最终输出的代码文本。同时，每一层把自己算出的 Key 和 Value 保存下来。把这 80 层留下的 KV 合起来记为 $C^{(1)}$。
 
-论文式 (1) 把第二轮写成：
-
-$$
-H^{(2)}=F_\theta\bigl(E+\operatorname{Shift}(H^{(1)},1)\bigr).
-$$
-
-这里的 Shift 是把上一轮的状态沿 token 位置移动。这个写法来自它参考的 Parallel Loop Transformer，但论文随后明确说：**LoopCoder 的实现没有采用 token shifting。**
-
-如果只去掉这个移动操作，论文递推关系就成为：
+第二轮直接拿 $H^{(1)}$ 作为入口，再走一遍这组 Block；各层还会读取 $C^{(1)}$ 中自己在第一轮留下的 KV：
 
 $$
-H^{(2)}=F_\theta(E+H^{(1)}).
+H^{(2)}=F_\theta^{(2)}\bigl(H^{(1)};C^{(1)}\bigr).
 $$
 
-也就是把原始输入和第一轮结果相加，再送进去。不过，第二轮还会读取第一轮留下的注意力缓存，所以上面只是在概括轮与轮之间的输入关系，完整计算还要看下一节。
+这里分号后的 $C^{(1)}$ 表示额外读取的缓存。**第二轮的入口就是第一轮输出：位置不移动，也不在两轮交界处再次加上原始输入 $E$。**
 
-> 补充：作者公开的 IQuest-Coder-V1 Loop 模型代码，在两轮交界处直接沿用上一轮的 `hidden_states`，没有再次加上 $E$，也没有 Shift。因而代码中的轮间输入更接近 $H^{(1)}\to H^{(2)}$。这里把论文写法和公开实现分开：它们共同采用两轮共享主体参数，但不能把论文的 $E+$ 当成这份代码实际执行的步骤。[官方代码，固定版本](https://huggingface.co/IQuestLab/IQuest-Coder-V1-40B-Loop-Instruct/blob/61e8589747f6987ec7725e4ffe205f7a84561bd2/modeling_iquestloopcoder.py)
+两轮共享主体权重，但执行方式有一个区别：第一轮做普通因果注意力，第二轮把第一轮的 KV 与本轮的 KV 分别用于注意力，再通过额外学习的门控合并结果。因此用 $F_\theta^{(1)}$ 和 $F_\theta^{(2)}$ 区分两轮的执行流程；它们并不是两套独立的 Transformer 主体参数。下一节具体看这些信息怎样合并。
+
+> 补充：论文式 (1) 写的是 $H^{(2)}=F_\theta(E+\operatorname{Shift}(H^{(1)},1))$，但 §2.1 末尾又说明实现没有采用 token shifting；作者公开代码则直接沿用上一轮的 `hidden_states`，既没有 Shift，也没有在轮间再次加上 $E$。论文公式与公开实现存在差异，因此本节按代码解释实际连接方式，上面的两轮公式是对代码流程的概括。[论文 §2.1](https://aclanthology.org/2026.findings-acl.796.pdf#page=2)、[官方代码，固定版本](https://huggingface.co/IQuestLab/IQuest-Coder-V1-40B-Loop-Instruct/blob/61e8589747f6987ec7725e4ffe205f7a84561bd2/modeling_iquestloopcoder.py)
 
 这一组共有 80 个 Block，循环两轮，实际经过的 Block 计算次数就是：
 
@@ -184,7 +180,7 @@ $$
 $$
 \begin{aligned}
 h_1&=f_\theta(e),\\
-h_2&=f_\theta(e+h_1),\\
+h_2&=f_\theta(h_1),\\
 \mathcal L&=\ell(h_2).
 \end{aligned}
 $$
