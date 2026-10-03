@@ -68,6 +68,43 @@ $$
 
 $\odot$ 表示逐元素相乘。公开实现中，每个头在每个 token 位置得到一个标量门值，再广播到这个头的各个输出维度。
 
+具体看第 $\ell$ 层、第 $a$ 个注意力头、第 $i$ 个 token。把送入门控头的第二轮 Query 记为 $q_{\ell,a,i}^{(2)}\in\mathbb R^{d_h}$，这个头有一个可学习的向量 $w_{\ell,a}\in\mathbb R^{d_h}$ 和偏置 $b_{\ell,a}\in\mathbb R$。门值就是：
+
+$$
+g_{\ell,a,i}
+=\sigma\!\left(w_{\ell,a}^{\top}q_{\ell,a,i}^{(2)}+b_{\ell,a}\right),
+\qquad
+\sigma(s)=\frac{1}{1+e^{-s}}.
+$$
+
+也就是把 Query 乘一个向量，压成一个数，再用 sigmoid 压到 $0\sim1$。同一层同一个头的 $w,b$ 在各个位置共用，但不同位置的 Query 不同，所以门值可以不同。上面的 $g_\ell$ 是这一层所有头、所有位置的门值的合称。
+
+**训练时，门控参数和模型其他参数一起通过最终预测损失更新。** 以预测下一个 token 的训练为例，把全部门控参数记为 $\phi=\{w_{\ell,a},b_{\ell,a}\}$，有效预测位置集合记为 $\mathcal T$，损失可写成：
+
+$$
+\mathcal L_{\mathrm{LM}}
+=-\frac{1}{|\mathcal T|}\sum_{i\in\mathcal T}
+\log p_{\theta,\phi}(x_{i+1}\mid x_{\le i}).
+$$
+
+预测出错的信号沿后面的层传回到门控。我们只看一个头、一个位置，暂时省略下标：
+
+$$
+o=g\,o_{\mathrm g}+(1-g)\,o_{\mathrm l}.
+$$
+
+把从后面传回来的梯度记为 $\delta=\nabla_o\mathcal L$，按链式法则，这个位置对门控参数的梯度贡献是：
+
+$$
+\begin{aligned}
+\beta&=\bigl[\delta^\top(o_{\mathrm g}-o_{\mathrm l})\bigr]g(1-g),\\
+\nabla_w\mathcal L\big|_i&=\beta\,q^{(2)},\\
+\frac{\partial\mathcal L}{\partial b}\bigg|_i&=\beta.
+\end{aligned}
+$$
+
+这里 $\beta$ 是一个标量。各个有效位置、各个样本的贡献累积起来，再由优化器更新 $w,b$。如果一次调整让最终预测更准确，训练就会推动门控朝这个方向变化，逐渐学到什么时候多用第一轮的信息、什么时候多用第二轮的信息。这几步是对门控计算的链式法则展开，不是额外添加的训练目标。
+
 合并后的结果经过多头注意力的输出投影，接上残差和前馈网络，得到 $X_\ell^{(2)}$，继续送进下一层。把第 $\ell$ 层这整套计算记为 $G_\ell^{(2)}$，逐层连接就是：
 
 $$
