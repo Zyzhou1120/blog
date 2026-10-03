@@ -5,6 +5,7 @@ tags: []
 categories:
   - - loop transformer
   - - 论文
+priority: 2
 ---
 
 > 前文：[Ouro](/blog/read/?post=Ouro.md)、[Huginn](/blog/read/?post=Huginn.md)。本篇介绍 [LoopCoder: Scaling Code Intelligence via Looped Language Models](https://aclanthology.org/2026.findings-acl.796/)，以 ACL 2026 版本为准。
