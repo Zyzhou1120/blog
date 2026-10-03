@@ -2,6 +2,7 @@ import { applyMarkdownCommand } from './commands.js'
 import { setupLineNumbers } from './line-numbers.js'
 import { setupFullscreen } from './fullscreen.js'
 import { setupHighlighting } from './highlighting.js'
+import { setupScrollSync } from './scroll-sync.js'
 
 export function setupToolbar({ showMessage }) {
   const $ = (id) => document.getElementById(id)
@@ -11,7 +12,6 @@ export function setupToolbar({ showMessage }) {
   let history = []
   let position = -1
   let restoring = false
-  let syncing = false
   const snapshot = () => ({ text: input.value, start: input.selectionStart, end: input.selectionEnd })
 
   function update() {
@@ -92,17 +92,8 @@ export function setupToolbar({ showMessage }) {
     }
   })
 
-  function scroll(source, destination) {
-    $('line-numbers').scrollTop = input.scrollTop
-    if (syncing || !$('sync-scroll').checked) return
-    const distance = source.scrollHeight - source.clientHeight
-    if (distance <= 0) return
-    syncing = true
-    destination.scrollTop = source.scrollTop / distance * Math.max(0, destination.scrollHeight - destination.clientHeight)
-    requestAnimationFrame(() => { syncing = false })
-  }
-  input.addEventListener('scroll', () => scroll(input, $('preview')))
-  $('preview').addEventListener('scroll', () => scroll($('preview'), input))
+  input.addEventListener('scroll', () => { $('line-numbers').scrollTop = input.scrollTop })
+  setupScrollSync(input, $('preview'), $('line-numbers'), $('sync-scroll'))
   for (const button of document.querySelectorAll('button[data-layout]')) {
     button.addEventListener('click', () => {
       document.body.dataset.layout = button.dataset.layout

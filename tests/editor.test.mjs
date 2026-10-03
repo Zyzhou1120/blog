@@ -374,3 +374,44 @@ test('source colors follow edits, undo, scrolling and Chinese composition withou
     editor.close()
   }
 })
+
+test('scroll sync aligns the same heading after blocks with unequal rendered heights', async () => {
+  const editor = createEditor()
+  try {
+    await logIn(editor.window)
+    const { document, Event } = editor.window
+    const input = document.getElementById('markdown')
+    const preview = document.getElementById('preview')
+    input.value = '开头\n\n$$\nx = y\n$$\n\n### 应用\n\n' + '后续段落\n\n'.repeat(40)
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    await until(() => preview.querySelector('h3'))
+    for (const [element, height] of [[input, 3000], [preview, 1800]]) {
+      Object.defineProperty(element, 'scrollHeight', { configurable: true, value: height })
+      Object.defineProperty(element, 'clientHeight', { configurable: true, value: 400 })
+    }
+    preview.getBoundingClientRect = () => ({ top: 0 })
+    const heading = preview.querySelector('h3')
+    let headingY = 450
+    heading.getBoundingClientRect = () => ({ top: headingY - preview.scrollTop, height: 24 })
+    // All other blocks follow this heading. Only its source/rendered pair matters here.
+    for (const node of preview.children) if (node !== heading) node.getBoundingClientRect = () => ({ top: node === preview.firstElementChild ? 0 : 1600, height: 20 })
+    const gutter = document.getElementById('line-numbers')
+    const sourceY = [...gutter.children].slice(0, 6).reduce((sum, line) => sum + parseFloat(line.style.height), 0)
+    input.scrollTop = sourceY
+    input.dispatchEvent(new Event('scroll'))
+    assert.ok(Math.abs(preview.scrollTop - 450) < 30, `same heading should align, preview scrolled to ${preview.scrollTop}`)
+    // Delayed image loading changes the layout after the initial render.
+    headingY = 600
+    preview.dispatchEvent(new Event('load'))
+    await until(() => Math.abs(preview.scrollTop - 600) < 1)
+    preview.dispatchEvent(new Event('scroll')) // the event from the programmatic write
+    preview.scrollTop = 700
+    preview.dispatchEvent(new Event('scroll'))
+    assert.ok(input.scrollTop > sourceY, 'scrolling the preview must move the source forward')
+    const stoppedAt = input.scrollTop
+    document.getElementById('sync-scroll').checked = false
+    preview.scrollTop = 800
+    preview.dispatchEvent(new Event('scroll'))
+    assert.equal(input.scrollTop, stoppedAt, 'disabled sync must allow independent scrolling')
+  } finally { editor.close() }
+})

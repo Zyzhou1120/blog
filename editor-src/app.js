@@ -6,6 +6,7 @@ import catalog from '../shared/catalog.cjs'
 import mathExtension from '../shared/math.cjs'
 import { createPublicationTracker } from './publication.js'
 import { setupToolbar } from './toolbar.js'
+import { renderSourcePreview } from './preview-source.js'
 import { liveEndpoint, liveRequest, liveUrl } from './live-api.js'
 import { setupImages } from './images.js'
 import { setupCommentManager } from './comment-manager.js'
@@ -251,7 +252,7 @@ function renderPreview() {
     try { title = String(parseYaml(match[1])?.title || '') } catch { /* Show the body even with incomplete metadata. */ }
   }
   const titleHtml = title ? `<h1>${DOMPurify.sanitize(title, { ALLOWED_TAGS: [] })}</h1>` : ''
-  $('preview').innerHTML = DOMPurify.sanitize(titleHtml + marked.parse(body), { USE_PROFILES: { html: true, mathMl: true, svg: true } })
+  $('preview').innerHTML = DOMPurify.sanitize(titleHtml + renderSourcePreview(marked, $('markdown').value), { USE_PROFILES: { html: true, mathMl: true, svg: true } })
   $('preview').querySelectorAll('a').forEach((link) => {
     link.target = '_blank'
     link.rel = 'noopener noreferrer'
