@@ -95,13 +95,13 @@ $$
 \text{原代码}=P+M+S.
 $$
 
-普通续写主要学习从左向右预测；Fill-In-the-Middle，简称 FIM，会把前缀和后缀都先给出来，再要求模型生成中间内容：
+普通续写主要学习从左向右预测；Fill-In-the-Middle，简称 FIM，会把前缀和后缀都先给模型，再要求模型在后面接龙生成中间内容：
 
 ```text
 <fim_prefix> P <fim_suffix> S <fim_middle> M
 ```
 
-目标可以写成：
+目标依旧可以写成交叉熵：
 
 $$
 \mathcal L_{\mathrm{FIM}}
