@@ -48,8 +48,8 @@ importers:
         specifier: ^11.12.0
         version: 11.12.0
       katex:
-        specifier: ^0.18.9
-        version: 0.18.9
+        specifier: ^0.18.10
+        version: 0.18.10
       lucide:
         specifier: ^1.48.0
         version: 1.48.0
@@ -58,7 +58,7 @@ importers:
         version: 18.0.14
       marked-katex-extension:
         specifier: ^5.1.13
-        version: 5.1.13(katex@0.18.9)(marked@18.0.14)
+        version: 5.1.13(katex@0.18.10)(marked@18.0.14)
       yaml:
         specifier: ^2.9.1
         version: 2.9.1
@@ -1323,8 +1323,8 @@ packages:
   jstransformer@1.0.0:
     resolution: {integrity: sha512-C9YK3Rf8q6VAPDCCU9fnqo3mAfOH6vUGnMcP4AQAYIEpWtfGLpwOTmZ+igtdK5y+VvI2n3CyYSzy4Qh34eq24A==}
 
-  katex@0.18.9:
-    resolution: {integrity: sha512-8ad9RyoKsb/g8/yLFE+KAlP+DhbCTRUNi/V9XGsxn0R+trJJltNwzcDNo0q/DEkOy5fQUQTAQyCXCYSE+OakTQ==}
+  katex@0.18.10:
+    resolution: {integrity: sha512-/B6p9eY9DX7aHBfpkHdpirDTZ5QH9xTwL9y837PWuzuv41O5jFdqNQwVQEQsimY0/iVNkwBY4+4hMfhQ7d4Dbw==}
     hasBin: true
 
   kleur@4.1.5:
@@ -3085,7 +3085,7 @@ snapshots:
       is-promise: 2.2.2
       promise: 7.3.1
 
-  katex@0.18.9:
+  katex@0.18.10:
     dependencies:
       commander: 15.0.0
 
@@ -3099,9 +3099,9 @@ snapshots:
 
   lucide@1.48.0: {}
 
-  marked-katex-extension@5.1.13(katex@0.18.9)(marked@18.0.14):
+  marked-katex-extension@5.1.13(katex@0.18.10)(marked@18.0.14):
     dependencies:
-      katex: 0.18.9
+      katex: 0.18.10
       marked: 18.0.14
 
   marked@15.0.4: {}
