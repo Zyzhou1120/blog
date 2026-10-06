@@ -51,8 +51,8 @@ importers:
         specifier: ^0.18.9
         version: 0.18.9
       lucide:
-        specifier: ^1.48.0
-        version: 1.48.0
+        specifier: ^1.51.0
+        version: 1.51.0
       marked:
         specifier: ^18.0.14
         version: 18.0.14
@@ -1338,8 +1338,8 @@ packages:
     resolution: {integrity: sha512-U4N8FgzmWxc8k1VH8Kr6lQg18U7Fjvby6wXHVRX/ZZ7IwWbRMgrRbP0Wrb5q5NVinryp4SQampHKdvtecItxUg==}
     engines: {node: 20 || >=22}
 
-  lucide@1.48.0:
-    resolution: {integrity: sha512-8FglIlGkcIItJjJfLUiqAufUCdbtnTOsdG02/fxXd4oIt+NrcrEVH8t0ZcKAfawxHckorO5qJ9XDfnJbdf0TOg==}
+  lucide@1.51.0:
+    resolution: {integrity: sha512-7K2Zm6Haz2EhYOAAE1ZQfsfs83ywGodSCvwr7YvCBzB9oelqDsRvMFUBDbXEGUaUMAisC7xcjMmSrozzYL/UwQ==}
 
   marked-katex-extension@5.1.13:
     resolution: {integrity: sha512-+6gVygGg5at9g+YsuIQZk7XcAc6Pg1P0grEJKEWvF7DAwceZ7ZIvU0fhQe6auUqSbnPmSjJxZuICdSCdbGaFRw==}
@@ -3097,7 +3097,7 @@ snapshots:
 
   lru-cache@11.5.3: {}
 
-  lucide@1.48.0: {}
+  lucide@1.51.0: {}
 
   marked-katex-extension@5.1.13(katex@0.18.9)(marked@18.0.14):
     dependencies:
