@@ -107,11 +107,11 @@ async function checkLivePublication() {
   $('view-published').hidden = true
   if (!wanted) return false
   try {
-    const post = await liveRequest(`/posts/${encodeURIComponent(name)}`)
+    const post = await liveRequest(`/posts/${encodeURIComponent(name)}`, {}, token)
     if (check !== liveCheck || filename !== name || sha !== wanted) return false
     const matches = post.sha === wanted && post.text === baseText
     $('publication-bar').dataset.state = matches ? 'published' : 'publishing'
-    $('publication-state').textContent = matches ? '已发布 · 访客可立即读取，已备份到 GitHub' : '线上版本与当前内容不同，请重新载入文章'
+    $('publication-state').textContent = matches ? (post.private ? '已保护 · 访客需要密码阅读' : '已发布 · 访客可立即读取，已备份到 GitHub') : '线上版本与当前内容不同，请重新载入文章'
     $('view-published').href = liveUrl(name, siteRoot).href
     $('view-published').hidden = !matches
     return matches
@@ -202,8 +202,14 @@ function setSource(text, preserveMetadata = false) {
     categories: categoryPaths(next.meta.categories).map((path) => path.join(' / ')).join('、'),
     date: String(next.meta.date || '').slice(0, 10),
     priority: String(catalog.priority(next.meta.priority)),
+    private: next.meta.private === true,
   }
-  for (const [key, value] of Object.entries(initialFields)) $('post-' + key).value = value
+  for (const [key, value] of Object.entries(initialFields)) {
+    if (key === 'private') $('post-private').checked = value
+    else $('post-' + key).value = value
+  }
+  $('post-password').value = ''
+  $('private-password-field').hidden = !initialFields.private
   $('markdown').value = next.body
 }
 
@@ -220,6 +226,8 @@ function currentSource() {
     const paths = categories.split(/[、,，]/).map((path) => path.split('/').map((part) => part.trim()).filter(Boolean)).filter((path) => path.length)
     meta.categories = paths.length === 1 ? paths[0] : paths
   }
+  if ($('post-private').checked) meta.private = true
+  else delete meta.private
   return joinPost(documentSource, meta, $('markdown').value)
 }
 
@@ -268,7 +276,7 @@ function describePost(text, name) {
   const match = text?.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/)
   try {
     const meta = match ? parseYaml(match[1], { maxAliasCount: 20 }) || {} : {}
-    return { title: String(meta.title || name.replace(/\.md$/i, '')), category: categoryPaths(meta.categories).map((path) => path.join(' / ')).join('、') || '未分类' }
+    return { title: String(meta.title || name.replace(/\.md$/i, '')), category: categoryPaths(meta.categories).map((path) => path.join(' / ')).join('、') || '未分类', private: meta.private === true }
   } catch { return postDetails.get(name)?.meta || { title: name.replace(/\.md$/i, ''), category: '未分类' } }
 }
 
@@ -335,6 +343,12 @@ function renderPosts() {
         badge.textContent = post.sha ? '未提交' : '草稿'
         detail.append(badge)
       }
+      if (post.private) {
+        const badge = document.createElement('span')
+        badge.className = 'post-draft-badge'
+        badge.textContent = '私密'
+        detail.append(badge)
+      }
       button.append(title, detail)
       button.addEventListener('click', () => openPost(post))
       section.append(button)
@@ -355,7 +369,7 @@ async function loadPostDetails() {
   // Limit parallel reads for larger libraries and keep a failed read retryable.
   for (let i = 0; i < pending.length; i += 4) {
     await Promise.allSettled(pending.slice(i, i + 4).map(async (post) => {
-      const result = liveEndpoint ? await liveRequest(`/posts/${encodeURIComponent(post.name)}`) : await request(`/contents/${encodedPath(`${POSTS_PATH}/${post.name}`)}?ref=${BRANCH}`)
+      const result = liveEndpoint ? await liveRequest(`/posts/${encodeURIComponent(post.name)}`, {}, token) : await request(`/contents/${encodedPath(`${POSTS_PATH}/${post.name}`)}?ref=${BRANCH}`)
       const text = liveEndpoint ? result.text : decodeBase64(result.content)
       postDetails.set(post.name, { sha: result.sha, meta: describePost(text, post.name) })
     }))
@@ -387,7 +401,7 @@ function setDocument(name, text, currentSha) {
   renderPreview()
   renderPosts()
   controls.reset()
-  setStatus(currentSha ? '已保存到仓库' : '本地草稿')
+  setStatus(currentSha ? (initialFields.private ? '已保存到实时服务' : '已保存到仓库') : '本地草稿')
   if (currentSha && !$('post-title').value.trim()) showMessage('这篇文章缺少标题，请在上方填写后发布。正文已完整保留。', true)
   trackPublication()
   sidebarControls.closeOnMobile()
@@ -407,7 +421,7 @@ async function openPost(post, force = false) {
       setStatus('本地草稿已恢复')
       return
     }
-    const result = liveEndpoint ? await liveRequest(`/posts/${encodeURIComponent(post.name)}`) : await request(`/contents/${encodedPath(`${POSTS_PATH}/${post.name}`)}?ref=${BRANCH}`)
+    const result = liveEndpoint ? await liveRequest(`/posts/${encodeURIComponent(post.name)}`, {}, token) : await request(`/contents/${encodedPath(`${POSTS_PATH}/${post.name}`)}?ref=${BRANCH}`)
     setDocument(post.name, liveEndpoint ? result.text : decodeBase64(result.content), result.sha)
     const saved = localStorage.getItem(draftKey(post.name))
     if (saved) {
@@ -462,6 +476,7 @@ async function publish() {
   if (!filename) return showMessage('请先选择或新建文章。', true)
   if (!/^(?:[0-9]|10)$/.test($('post-priority').value)) return showMessage('重要级别必须为 0～10 的整数。', true)
   try { filenameForTitle($('post-title').value) } catch (error) { $('post-title').focus(); return showMessage(error.message, true) }
+  if ($('post-private').checked && !liveEndpoint) return showMessage('私密文章需要实时服务，当前无法安全发布。', true)
   if (liveEndpoint) return publishLive()
   if (!unsaved()) {
     await publication.check(true)
@@ -526,7 +541,14 @@ async function publish() {
 
 async function publishLive() {
   const nextName = filenameForTitle($('post-title').value)
-  if (!unsaved() && nextName === filename) {
+  const privateMode = $('post-private').checked
+  const password = $('post-password').value
+  const wasPrivate = sha && splitPost(baseText).meta.private === true
+  if (privateMode && !wasPrivate && password.length < 12) return showMessage('请设置至少 12 位的阅读密码。', true)
+  if (privateMode && password && (password.length < 12 || password.length > 128)) return showMessage('阅读密码需为 12～128 位。', true)
+  if (privateMode && sha && !wasPrivate && !window.confirm('这篇文章以前公开发布过，旧正文仍可能从 GitHub 历史记录中找到。继续设置密码？')) return
+  if (!privateMode && wasPrivate && !window.confirm('取消密码后，完整正文会写入公开 GitHub 仓库，所有访客都能阅读。确定公开？')) return
+  if (!unsaved() && nextName === filename && !password) {
     const confirmed = await checkLivePublication()
     return showMessage(confirmed ? '这份内容已经上线，可以查看最新文章。' : '尚未确认上线，请查看上方状态。', !confirmed)
   }
@@ -542,7 +564,7 @@ async function publishLive() {
   $('publication-bar').dataset.state = 'publishing'
   $('publication-state').textContent = '正在保存文章并通知访客…'
   try {
-    const post = await liveRequest(`/posts/${encodeURIComponent(name)}`, { method: 'PUT', body: JSON.stringify({ text, sha: previousSha, rename: true }) }, token)
+    const post = await liveRequest(`/posts/${encodeURIComponent(name)}`, { method: 'PUT', body: JSON.stringify({ text, sha: previousSha, rename: true, private: privateMode, ...(password ? { password } : {}) }) }, token)
     if (filename !== name) { await loadPosts(); return }
     const editedWhileSaving = currentSource() !== text
     filename = post.name
@@ -552,12 +574,13 @@ async function publishLive() {
     posts = posts.filter((item) => item.name !== name)
     sha = post.sha
     baseText = post.text
+    $('post-password').value = ''
     if (!editedWhileSaving) setSource(post.text)
     else if (splitPost(post.text).meta.permalink) documentSource.meta.permalink = splitPost(post.text).meta.permalink
     storeDraft()
     renderPreview()
     const confirmed = await checkLivePublication()
-    showMessage(confirmed ? '发布成功，阅读页会自动更新。' : '文章已保存，正在等待线上核验，请点击“检查发布”。', !confirmed)
+    showMessage(confirmed ? (privateMode ? '已设置密码，访客输入密码后可阅读。' : '发布成功，阅读页会自动更新。') : '文章已保存，正在等待线上核验，请点击“检查发布”。', !confirmed)
     try { await loadPosts() } catch { /* A list refresh cannot undo a confirmed save. */ }
   } catch (error) {
     setStatus('发布未完成 · 草稿已保留')
@@ -575,6 +598,9 @@ function clearDocument() {
   sha = null
   baseText = ''
   setSource('')
+  $('post-private').checked = false
+  $('post-password').value = ''
+  $('private-password-field').hidden = true
   $('document-title').textContent = '选择文章'
   $('filename').textContent = ''
   $('filename-hint').textContent = '文件名随标题自动更新'
@@ -733,6 +759,7 @@ function contentChanged() {
 }
 $('markdown').addEventListener('input', contentChanged)
 for (const key of ['title', 'categories', 'date', 'priority']) $('post-' + key).addEventListener('input', contentChanged)
+$('post-private').addEventListener('change', () => { $('private-password-field').hidden = !$('post-private').checked; contentChanged() })
 
 $('post-search').addEventListener('input', renderPosts)
 

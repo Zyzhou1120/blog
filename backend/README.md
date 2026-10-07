@@ -11,6 +11,13 @@
 5. 使用博主已有 GitHub 令牌向服务的 `POST /sync` 发送 `Authorization: Bearer …`，导入仓库中的文章；检查公开 `GET /posts` 和 `GET /posts/welcome.md`。令牌通过请求头传输，不能放进 URL、日志或配置文件。
 
 编辑器删除文章时调用 `DELETE /posts/{文件名}`，请求体为 `{ "sha": "当前文章 SHA" }`。服务先核对仓库版本，在同一次 Git 提交中删除文章和指向它的旧链接，然后清除实时副本、浏览量、点赞与评论；发生版本冲突时返回 409，文章不会被删除。
+
+## 私密文章
+
+- 编辑器可逐篇勾选“需要密码阅读”，首次设置或更换密码需输入 12～128 位。GitHub 仓库和 Pages 只保存标题、日期、分类、优先级、旧链接及 `private: true` 标记；完整 Markdown 仅保存在 Cloudflare Durable Object。公开 `GET /posts/:name` 返回无正文的版本，博主的 GitHub 令牌经身份验证后才可读取全文。
+- 访客向 `POST /unlock/:name` 提交阅读密码，验证后仅本次页面保留解锁内容。密码在 Durable Object 中用随机盐和 PBKDF2-SHA-256 保存验证值，不写入 GitHub 或本地草稿；同一来源连续输错五次将暂停十分钟。
+- 私密正文不备份到公开仓库。请自行留存重要文章的 Markdown；若 Durable Object 数据丢失，仅凭公开仓库的锁定版本无法恢复正文。
+- **已公开过的文章无法通过加密码收回旧版本。** GitHub 提交历史、旧 Pages 页面、搜索引擎缓存和已下载的副本可能保留正文。私密文章的标题、分类、日期仍公开；文章中引用的已上传图片、外部图片和其他公开文件也仍可被直接访问。真正敏感的正文或图片应从未公开的新文章开始，并避免使用公开图片链接。
 6. 运行 `pnpm test:editor` 和 `TZ=Asia/Shanghai GITHUB_REPOSITORY=Zyzhou1120/blog node .github/build-pages.mjs`，提交并推送前端配置。构建脚本会同步编辑器 CSP，只允许配置的服务地址。
 7. 用两个浏览器窗口验证：编辑窗口提交修改，已打开的普通文章页自动更新；再从首页进入，并验证新文章在静态构建完成前也能打开。
 

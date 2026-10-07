@@ -811,6 +811,14 @@ body.focus-mode .sidebar { display: none; }
 .delete-post { color: #9b4545; }
 .delete-post:hover { background: #fff0ef; color: #a43838; }
 .delete-post:disabled { opacity: 0.35; cursor: default; }
+.post-privacy { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 9px 24px; background: #fff; border-bottom: 1px solid #dce5e8; flex-shrink: 0; }
+.post-privacy > label:first-child { display: flex; align-items: center; gap: 7px; white-space: nowrap; font-size: 13px; }
+.post-privacy > label:first-child input { margin: 0; }
+.post-privacy > label:last-child { display: flex; align-items: center; gap: 8px; flex: 1 1 350px; min-width: 0; flex-wrap: wrap; font-size: 13px; }
+.post-privacy > label:last-child[hidden] { display: none; }
+.post-privacy input[type="password"] { min-width: 220px; height: 34px; padding: 6px 9px; border: 1px solid #b9c6cb; border-radius: 5px; }
+.post-privacy small { color: #68767c; line-height: 1.4; }
+@media (max-width: 520px) { .post-privacy { padding: 9px 14px; } .post-privacy input[type="password"] { width: 100%; } }
 .delete-target { margin: 0 0 12px; font-weight: 650; font-size: 15px; overflow-wrap: anywhere; }
 .delete-detail { margin: 0; color: #62717a; font-size: 13px; line-height: 1.6; }
 .danger-button { border: 0; border-radius: 6px; min-height: 36px; padding: 0 15px; background: #a43838; color: #fff; font-weight: 650; }

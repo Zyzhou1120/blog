@@ -128,6 +128,62 @@ test('owner publishes to GitHub and SQLite; an already-open visitor receives the
   } finally { await f.close() }
 })
 
+test('private posts keep their body out of GitHub and public APIs, unlock with a password, and can become public again', async () => {
+  const f = await fixture()
+  try {
+    await f.request('/sync', { method: 'POST' })
+    const original = await (await f.request('/posts/welcome.md')).json()
+    const secret = '只有知道密码的人才能读到的正文'
+    const password = 'a-long-reading-password-2026'
+    const source = original.text.replace('2222\n3333', secret).replace('title: 欢迎', 'title: 私密文章\nprivate: true')
+    const published = await f.request('/posts/welcome.md', { method: 'PUT', body: { text: source, sha: original.sha, rename: true, private: true, password } })
+    assert.equal(published.status, 200)
+    const saved = await published.json()
+    assert.equal(saved.name, '私密文章.md')
+    assert.match(saved.text, new RegExp(secret))
+    assert.equal(f.files.has('welcome.md'), false)
+    assert.doesNotMatch(f.files.get(saved.name).text, new RegExp(secret))
+    assert.match(f.files.get(saved.name).text, /private: true/)
+    const visitor = await (await f.request('/posts/私密文章.md', { token: '' })).json()
+    assert.equal(visitor.sha, saved.sha)
+    assert.doesNotMatch(visitor.text, new RegExp(secret))
+    assert.equal((await f.request('/posts/私密文章.md', { token: 'stranger' })).status, 403)
+    assert.match((await (await f.request('/posts/私密文章.md')).json()).text, new RegExp(secret))
+    assert.equal((await f.request('/unlock/私密文章.md', { method: 'POST', token: '', body: { password: 'wrong-password' } })).status, 401)
+    const unlocked = await f.request('/unlock/私密文章.md', { method: 'POST', token: '', body: { password } })
+    assert.equal(unlocked.status, 200)
+    assert.match((await unlocked.json()).text, new RegExp(secret))
+    await f.request('/sync', { method: 'POST' })
+    assert.doesNotMatch((await (await f.request('/posts/welcome.md', { token: '' })).json()).text, new RegExp(secret))
+    const current = await (await f.request('/posts/私密文章.md')).json()
+    const next = current.text.replace(secret, '重新写过的私密正文')
+    const changed = await f.request('/posts/私密文章.md', { method: 'PUT', body: { text: next, sha: current.sha, rename: true, private: true } })
+    assert.equal(changed.status, 200)
+    assert.doesNotMatch(f.files.get(saved.name).text, /重新写过/)
+    assert.match((await (await f.request('/unlock/私密文章.md', { method: 'POST', token: '', body: { password } })).json()).text, /重新写过/)
+    const latest = await (await f.request('/posts/私密文章.md')).json()
+    const publicText = latest.text.replace('private: true\n', '')
+    const opened = await f.request('/posts/私密文章.md', { method: 'PUT', body: { text: publicText, sha: latest.sha, rename: true, private: false } })
+    assert.equal(opened.status, 200)
+    assert.match(f.files.get(saved.name).text, /重新写过的私密正文/)
+    assert.match((await (await f.request('/posts/私密文章.md', { token: '' })).json()).text, /重新写过的私密正文/)
+  } finally { await f.close() }
+})
+
+test('private publication rejects weak passwords and does not expose the old public body on a failed GitHub write', async () => {
+  const f = await fixture()
+  try {
+    await f.request('/sync', { method: 'POST' })
+    const original = await (await f.request('/posts/welcome.md')).json()
+    const text = original.text.replace('title: 欢迎', 'title: 欢迎\nprivate: true')
+    assert.equal((await f.request('/posts/welcome.md', { method: 'PUT', body: { text, sha: original.sha, rename: true, private: true, password: 'short' } })).status, 400)
+    assert.equal((await f.request('/posts/welcome.md', { method: 'PUT', body: { text, sha: original.sha, rename: true } })).status, 400)
+    f.failPut()
+    assert.equal((await f.request('/posts/welcome.md', { method: 'PUT', body: { text, sha: original.sha, rename: true, private: true, password: 'long-password-2026' } })).status, 500)
+    assert.equal((await (await f.request('/posts/welcome.md', { token: '' })).json()).text, original.text)
+  } finally { await f.close() }
+})
+
 test('deleting a post removes its aliases, interaction data and public content', async () => {
   const f = await fixture()
   try {

@@ -85,6 +85,24 @@ test('live editor confirms publicly readable content without waiting for a Pages
   } finally { f.close() }
 })
 
+test('owner can require a per-post password without placing it in the Markdown', async () => {
+  const f = await fixture()
+  try {
+    const doc = f.window.document
+    doc.getElementById('post-private').click()
+    assert.equal(doc.getElementById('private-password-field').hidden, false)
+    doc.getElementById('post-password').value = 'a-long-reading-password'
+    doc.getElementById('publish').click()
+    await until(() => !doc.getElementById('publish').disabled)
+    const request = f.requests.find((item) => item.method === 'PUT' && item.url.includes('/posts/'))
+    assert.equal(JSON.parse(request.body).private, true)
+    assert.equal(JSON.parse(request.body).password, 'a-long-reading-password')
+    assert.match(JSON.parse(request.body).text, /private: true/)
+    assert.doesNotMatch(JSON.parse(request.body).text, /a-long-reading-password/)
+    assert.equal(doc.getElementById('post-password').value, '')
+  } finally { f.close() }
+})
+
 function pasteImage(window) {
   const file = new window.File([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])], '截图.png', { type: 'image/png' })
   const event = new window.Event('paste', { bubbles: true, cancelable: true })

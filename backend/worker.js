@@ -1,6 +1,7 @@
 import { DurableObject } from 'cloudflare:workers'
-import { splitPost } from '../shared/post.mjs'
+import { splitPost, joinPost } from '../shared/post.mjs'
 import { deletePublishedPost, publishWithTitle, readAliases } from './rename.js'
+import { initializePrivate, isPrivate, privateCredentials, publicStub, unlockPrivate } from './private.js'
 import { uploadImage } from './images.js'
 import { initializeViews, articleViews } from './views.js'
 import { initializeEngagement, articleIdentity, engagementRoute, manageComments } from './engagement.js'
@@ -38,10 +39,10 @@ export default {
       if (!['GET', 'PUT', 'POST', 'DELETE'].includes(request.method)) throw fail('Method not allowed', 405)
       const token = request.headers.get('Authorization')?.match(/^Bearer (\S+)$/)?.[1]
       const path = new URL(request.url).pathname
-      const publicMutation = request.method === 'POST' && /^\/(views|likes|comments)\//.test(path) && validName(decodeURIComponent(path.split('/').slice(2).join('/')))
+      const publicMutation = request.method === 'POST' && /^\/(views|likes|comments|unlock)\//.test(path) && validName(decodeURIComponent(path.split('/').slice(2).join('/')))
       const admin = path === '/manage-comments' || path === '/initialize-engagement'
       let owner = false
-      if (admin || (request.method !== 'GET' && !publicMutation) || (path.startsWith('/comments/') && request.method === 'POST' && token)) {
+      if (admin || (request.method !== 'GET' && !publicMutation) || (path.startsWith('/comments/') && request.method === 'POST' && token) || (path.startsWith('/posts/') && request.method === 'GET' && token)) {
         if (!token) throw fail('请先登录。', 401)
         const account = await github(env, token, '/user')
         if (account.login?.toLowerCase() !== env.OWNER.toLowerCase()) throw fail('仅博主可以执行此操作。', 403)
@@ -68,12 +69,14 @@ export class Blog extends DurableObject {
     this.sql = ctx.storage.sql
     this.sql.exec('CREATE TABLE IF NOT EXISTS posts (name TEXT PRIMARY KEY, sha TEXT NOT NULL, text TEXT NOT NULL, updated TEXT NOT NULL)')
     this.sql.exec('CREATE TABLE IF NOT EXISTS aliases (name TEXT PRIMARY KEY, target TEXT NOT NULL)')
+    initializePrivate(this.sql)
     initializeViews(this.sql)
     initializeEngagement(this.sql)
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping', 'pong'))
   }
 
   post(name) { return this.sql.exec('SELECT * FROM posts WHERE name = ?', name).toArray()[0] }
+  privatePost(name) { return this.sql.exec('SELECT text, salt, verifier FROM private_posts WHERE name = ?', name).toArray()[0] }
   resolve(name) { return this.sql.exec('SELECT target FROM aliases WHERE name = ?', name).toArray()[0]?.target || name }
   importAliases(aliases) {
     this.sql.exec('DELETE FROM aliases')
@@ -83,7 +86,7 @@ export class Blog extends DurableObject {
   }
   repo(path = '') { return `/repos/${this.env.OWNER}/${this.env.REPO}/contents/source/_posts${path}` }
   save(name, sha, text) {
-    const updated = new Date().toISOString()
+    const updated = new Date(Math.max(Date.now(), Date.parse(this.post(name)?.updated || '') + 1 || 0)).toISOString()
     this.sql.exec('INSERT INTO posts VALUES (?, ?, ?, ?) ON CONFLICT(name) DO UPDATE SET sha=excluded.sha, text=excluded.text, updated=excluded.updated', name, sha, text, updated)
     // The SQLite write commits before the runtime delivers outgoing messages (output gate).
     for (const socket of this.ctx.getWebSockets()) {
@@ -96,6 +99,7 @@ export class Blog extends DurableObject {
     const names = [name, ...this.sql.exec('SELECT name FROM aliases WHERE target = ?', name).toArray().map((row) => row.name)]
     const ids = new Set(names.map((item) => this.sql.exec('SELECT id FROM view_keys WHERE name = ?', item).toArray()[0]?.id).filter(Boolean))
     this.sql.exec('DELETE FROM posts WHERE name = ?', name)
+    this.sql.exec('DELETE FROM private_posts WHERE name = ?', name)
     this.sql.exec('DELETE FROM aliases WHERE name = ? OR target = ?', name, name)
     for (const item of names) this.sql.exec('DELETE FROM view_keys WHERE name = ?', item)
     for (const id of ids) {
@@ -135,6 +139,15 @@ export class Blog extends DurableObject {
       return engagementRoute(this, request, name, interaction[1], request.headers.get('X-Blog-Owner') === 'true')
     }
     if (url.pathname === '/health') return json({ ok: true })
+    if (url.pathname.startsWith('/unlock/') && request.method === 'POST') {
+      const name = decodeURIComponent(url.pathname.slice(8))
+      if (!validName(name)) return json({ message: '文件名无效。' }, 400)
+      let body
+      try { body = await request.json() } catch { return json({ message: '请求无效。' }, 400) }
+      const resolved = this.resolve(name)
+      if (!this.post(resolved) || !this.privatePost(resolved)) return json({ message: '文章不存在。' }, 404)
+      return this.ctx.blockConcurrencyWhile(() => unlockPrivate(this, resolved, body.password, request.headers.get('CF-Connecting-IP')))
+    }
     if (url.pathname.startsWith('/views/') && ['GET', 'POST'].includes(request.method)) {
       const name = decodeURIComponent(url.pathname.slice(7))
       if (!validName(name)) return json({ message: '文件名无效。' }, 400)
@@ -143,7 +156,13 @@ export class Blog extends DurableObject {
     if (url.pathname === '/posts' && request.method === 'GET') return json(this.sql.exec('SELECT name, sha, updated FROM posts ORDER BY name DESC').toArray())
     const name = url.pathname.startsWith('/posts/') ? decodeURIComponent(url.pathname.slice(7)) : null
     if (name && !validName(name)) return json({ message: '文件名无效。' }, 400)
-    if (name && request.method === 'GET') return this.post(this.resolve(name)) ? json(this.post(this.resolve(name))) : json({ message: '文章不存在。' }, 404)
+    if (name && request.method === 'GET') {
+      const resolved = this.resolve(name)
+      const post = this.post(resolved)
+      if (!post) return json({ message: '文章不存在。' }, 404)
+      const privateEntry = request.headers.get('X-Blog-Owner') === 'true' ? this.privatePost(resolved) : null
+      return json(privateEntry ? { ...post, text: privateEntry.text, private: true } : post)
+    }
     const token = request.headers.get('Authorization')?.slice(7)
     if (url.pathname === '/sync' && request.method === 'POST') {
       // Only the verified owner reaches mutations. Serialize import and writes across tabs.
@@ -157,7 +176,11 @@ export class Blog extends DurableObject {
           if (this.post(file.name)?.sha === file.sha) continue
           const raw = await github(this.env, token, `${this.repo(`/${encodeURIComponent(file.name)}`)}?ref=${this.env.BRANCH}`)
           if (raw.encoding !== 'base64' || raw.size > MAX_BYTES) continue
-          this.save(file.name, raw.sha, decode(raw.content))
+          const text = decode(raw.content)
+          this.ctx.storage.transactionSync(() => {
+            this.save(file.name, raw.sha, text)
+            if (!isPrivate(text)) this.sql.exec('DELETE FROM private_posts WHERE name = ?', file.name)
+          })
         }
         for (const old of this.sql.exec('SELECT name FROM posts').toArray()) {
           if (!names.has(old.name)) this.ctx.storage.transactionSync(() => this.remove(old.name))
@@ -189,7 +212,7 @@ export class Blog extends DurableObject {
       if (new TextEncoder().encode(payload).length > MAX_BYTES * 2) return json({ message: '文章太大。' }, 413)
       let data
       try { data = JSON.parse(payload) } catch { return json({ message: '请求无效。' }, 400) }
-      if (typeof data.text !== 'string' || new TextEncoder().encode(data.text).length > MAX_BYTES || !(data.sha === null || typeof data.sha === 'string')) return json({ message: '文章格式无效或超过 512 KB。' }, 400)
+        if (typeof data.text !== 'string' || new TextEncoder().encode(data.text).length > MAX_BYTES || !(data.sha === null || typeof data.sha === 'string')) return json({ message: '文章格式无效或超过 512 KB。' }, 400)
       return this.ctx.blockConcurrencyWhile(async () => {
         const current = this.post(name)
         if ((current?.sha || null) !== data.sha && !(data.rename === true && this.resolve(name) !== name)) return json({ message: '文章已有新修改，请载入最新版后重试。' }, 409)
@@ -197,10 +220,35 @@ export class Blog extends DurableObject {
         try { parsed = splitPost(data.text) } catch { return json({ message: '文章信息格式无效，请检查标题和分类。' }, 400) }
         if (typeof parsed.meta.title !== 'string' || !parsed.meta.title.trim()) return json({ message: '文章缺少标题。请刷新编辑页，在上方填写标题后再发布，正文草稿已保留。' }, 400)
         if (parsed.meta.priority !== undefined && (!Number.isInteger(parsed.meta.priority) || parsed.meta.priority < 0 || parsed.meta.priority > 10)) return json({ message: '重要级别必须为 0～10 的整数。' }, 400)
+        if (parsed.meta.private === true && data.private !== true) return json({ message: '私密文章必须通过密码发布。' }, 400)
+        if (this.privatePost(name) && data.rename !== true) return json({ message: '私密文章需要通过编辑器发布。' }, 400)
+        if (data.private === true) {
+          if (data.rename !== true) return json({ message: '私密文章需要通过编辑器发布。' }, 400)
+          let credentials = this.privatePost(name)
+          if (data.password) {
+            try { credentials = await privateCredentials(data.password) } catch (error) { return json({ message: error.message }, error.status || 400) }
+          }
+          if (!credentials) return json({ message: '请为这篇文章设置至少 12 位的阅读密码。' }, 400)
+          const full = joinPost(parsed, { ...parsed.meta, private: true })
+          const result = await publishWithTitle(this.env, token, github, name, { ...data, text: publicStub(full) })
+          const fullParts = splitPost(full)
+          const publicMeta = splitPost(result.text).meta
+          const savedText = joinPost(fullParts, { ...fullParts.meta, permalink: publicMeta.permalink || fullParts.meta.permalink, private: true })
+          return json(this.ctx.storage.transactionSync(() => {
+            if (name !== result.name) this.sql.exec('DELETE FROM private_posts WHERE name = ?', name)
+            this.importAliases(result.aliases)
+            this.sql.exec('INSERT INTO private_posts VALUES (?, ?, ?, ?) ON CONFLICT(name) DO UPDATE SET text=excluded.text, salt=excluded.salt, verifier=excluded.verifier', result.name, savedText, credentials.salt, credentials.verifier)
+            if (name !== result.name) this.sql.exec('DELETE FROM posts WHERE name = ?', name)
+            return { ...this.save(result.name, result.sha, result.text), text: savedText, private: true }
+          }))
+        }
         if (data.rename === true) {
-          const result = await publishWithTitle(this.env, token, github, name, data)
+          const clean = parsed.meta.private === false ? joinPost(parsed, Object.fromEntries(Object.entries(parsed.meta).filter(([key]) => key !== 'private'))) : data.text
+          const result = await publishWithTitle(this.env, token, github, name, { ...data, text: clean })
           const saved = this.ctx.storage.transactionSync(() => {
             this.importAliases(result.aliases)
+            this.sql.exec('DELETE FROM private_posts WHERE name = ?', name)
+            if (name !== result.name) this.sql.exec('DELETE FROM private_posts WHERE name = ?', result.name)
             if (name !== result.name) this.sql.exec('DELETE FROM posts WHERE name = ?', name)
             return this.save(result.name, result.sha, result.text)
           })

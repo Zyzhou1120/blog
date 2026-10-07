@@ -10,8 +10,8 @@ layout: false
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.github.com https://zyzhou-blog-live.zyzhou1120-blog.workers.dev; img-src 'self' data: https:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>文章编辑 | 舟遥的博客</title>
   <link rel="stylesheet" href="../vendor/katex/katex.min.css">
-  <link rel="stylesheet" href="editor.css?v=14">
-  <script src="editor.js?v=21" defer></script>
+  <link rel="stylesheet" href="editor.css?v=15">
+  <script src="editor.js?v=22" defer></script>
 </head>
 <body data-view="edit" data-layout="split">
   <div id="connection-view" class="connection-view" role="status">
@@ -54,6 +54,7 @@ layout: false
           <label class="post-priority-field">重要级别<select id="post-priority" aria-label="重要级别"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select><small>0～10，数字越大越靠前</small></label>
           <label class="post-date-field">发布日期<input id="post-date" type="date"></label>
         </div>
+        <div class="post-privacy"><label><input id="post-private" type="checkbox">需要密码阅读</label><label id="private-password-field" hidden>阅读密码<input id="post-password" type="password" minlength="12" maxlength="128" autocomplete="new-password" placeholder="至少 12 位；已有密码可留空"><small id="private-password-note">正文只保存在实时服务，请自留备份；标题、分类和已上传图片仍公开。</small></label></div>
         <div id="conflict-notice" class="draft-notice conflict-notice" hidden><span>远程文章已有新修改，你的草稿已保存在本地。</span><button id="reload-conflict" type="button">载入最新版本</button></div>
         <div id="draft-notice" class="draft-notice" hidden><span id="draft-copy">发现未提交的本地草稿</span><button id="restore-draft" type="button">恢复</button><button id="dismiss-draft" type="button" aria-label="忽略草稿" title="忽略草稿"><i data-lucide="x"></i></button></div>
         <div id="publication-bar" class="publication-bar" data-state="unpublished"><span id="publication-state" role="status">尚未发布</span><div class="publication-actions"><button id="check-publication" type="button">检查发布</button><a id="view-published" target="_blank" rel="noopener noreferrer" hidden>查看最新文章 <i data-lucide="external-link"></i></a><a href="https://github.com/Zyzhou1120/blog/actions/workflows/pages.yml" target="_blank" rel="noopener noreferrer">发布记录</a></div></div>

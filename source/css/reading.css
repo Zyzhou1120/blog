@@ -135,3 +135,12 @@
 .search-page .page-title { margin: 0 0 24px; }
 .search-results .blog-post-card { margin-bottom: 20px; }
 @media (max-width: 600px) { .blog-search { padding: 16px; gap: 8px; flex-wrap: wrap; } .blog-search label { flex-basis: 100%; } .blog-search button { flex: 1; } }
+/* Password-protected article entry. */
+.private-unlock { display: grid; gap: 12px; max-width: 340px; margin: 24px 0; }
+.private-unlock label { display: grid; gap: 7px; font-weight: 600; }
+.private-unlock input { width: 100%; padding: 10px 12px; border: 1px solid #aab8be; border-radius: 5px; }
+.private-unlock button { width: max-content; padding: 9px 15px; border: 0; border-radius: 5px; background: #267767; color: white; cursor: pointer; }
+.private-unlock button:disabled { opacity: .6; cursor: wait; }
+.private-unlock-status { margin: 0; color: #a43838; }
+.private-lock-label { margin: 24px 0 0; }
+.blog-post-title .fa-lock { font-size: 13px; margin-right: 8px; color: #72818a; }
