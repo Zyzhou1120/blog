@@ -5,6 +5,7 @@ categories:
   - - 自动驾驶
   - - 论文
 tags: []
+priority: 2
 ---
 
 > 本篇介绍 ScenGE： [Adversarial Generation and Collaborative Evolution of Safety-Critical Scenarios for Autonomous Vehicles](https://arxiv.org/html/2508.14527v2)。方法、公式和数字以链接中的 arXiv v2 为准。
