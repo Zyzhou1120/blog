@@ -128,6 +128,54 @@ test('owner publishes to GitHub and SQLite; an already-open visitor receives the
   } finally { await f.close() }
 })
 
+test('deleting a post removes its aliases, interaction data and public content', async () => {
+  const f = await fixture()
+  try {
+    await f.request('/sync', { method: 'POST' })
+    const first = await (await f.request('/posts/welcome.md')).json()
+    const renamed = await (await f.request('/posts/welcome.md', {
+      method: 'PUT', body: { text: first.text.replace('title: 欢迎', 'title: 新标题'), sha: first.sha, rename: true },
+    })).json()
+    const name = renamed.name
+    await f.request(`/views/${encodeURIComponent(name)}`, { token: '' })
+    const comment = await f.request(`/comments/${encodeURIComponent(name)}`, { method: 'POST', token: '', body: {
+      requestId: '00000000-0000-4000-8000-000000000001', visitor: '00000000-0000-4000-8000-000000000002', nickname: '读者', body: '测试评论',
+    } })
+    assert.equal(comment.status, 201)
+    assert.equal((await (await f.request('/manage-comments')).json()).items.length, 1)
+    const events = await f.request('/events', { token: '', headers: { Upgrade: 'websocket' } })
+    events.webSocket.accept()
+    const notification = new Promise((resolve) => events.webSocket.addEventListener('message', (event) => resolve(JSON.parse(event.data)), { once: true }))
+    assert.equal((await f.request(`/posts/${encodeURIComponent(name)}`, { method: 'DELETE', token: '', body: { sha: renamed.sha } })).status, 401)
+    assert.equal((await f.request(`/posts/${encodeURIComponent(name)}`, { method: 'DELETE', token: 'stranger', body: { sha: renamed.sha } })).status, 403)
+    assert.equal((await f.request(`/posts/${encodeURIComponent(name)}`, { method: 'DELETE', body: { sha: 'stale' } })).status, 409)
+    const deleted = await f.request(`/posts/${encodeURIComponent(name)}`, { method: 'DELETE', body: { sha: renamed.sha } })
+    assert.equal(deleted.status, 200)
+    assert.deepEqual(await notification, { type: 'deleted', name })
+    assert.equal(f.files.has(name), false)
+    assert.deepEqual(f.aliases, {})
+    assert.equal((await f.request(`/posts/${encodeURIComponent(name)}`, { token: '' })).status, 404)
+    assert.equal((await f.request('/posts/welcome.md', { token: '' })).status, 404)
+    assert.deepEqual(await (await f.request('/posts', { token: '' })).json(), [])
+    assert.equal((await (await f.request('/manage-comments')).json()).items.length, 0)
+    await f.request('/sync', { method: 'POST' })
+    assert.equal((await f.request('/posts/welcome.md', { token: '' })).status, 404)
+    events.webSocket.close()
+  } finally { await f.close() }
+})
+
+test('a failed or conflicted repository delete keeps the public article', async () => {
+  const f = await fixture()
+  try {
+    await f.request('/sync', { method: 'POST' })
+    const before = await (await f.request('/posts/welcome.md')).json()
+    f.raceRef()
+    assert.equal((await f.request('/posts/welcome.md', { method: 'DELETE', body: { sha: before.sha } })).status, 409)
+    assert.equal((await (await f.request('/posts/welcome.md')).json()).sha, before.sha)
+    assert.equal(f.files.has('welcome.md'), true)
+  } finally { await f.close() }
+})
+
 test('image uploads require owner authentication, preserve binary bytes, and deduplicate repeats', async () => {
   const f = await fixture()
   const content = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a0X8AAAAASUVORK5CYII='

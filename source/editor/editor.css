@@ -808,6 +808,14 @@ body.focus-mode .sidebar { display: none; }
 #document-title { font-size: 15px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .document-filename { color: #899ba3; font-size: 10px; font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .document-name > svg, .document-name > button { flex: none; }
+.delete-post { color: #9b4545; }
+.delete-post:hover { background: #fff0ef; color: #a43838; }
+.delete-post:disabled { opacity: 0.35; cursor: default; }
+.delete-target { margin: 0 0 12px; font-weight: 650; font-size: 15px; overflow-wrap: anywhere; }
+.delete-detail { margin: 0; color: #62717a; font-size: 13px; line-height: 1.6; }
+.danger-button { border: 0; border-radius: 6px; min-height: 36px; padding: 0 15px; background: #a43838; color: #fff; font-weight: 650; }
+.danger-button:hover { background: #842b2b; }
+.danger-button:disabled { opacity: 0.58; cursor: wait; }
 
 #markdown { white-space: pre-wrap; overflow-wrap: anywhere; word-break: normal; overflow-x: hidden; overflow-y: scroll; }
 .sidebar-actions { display: flex; align-items: center; gap: 2px; }

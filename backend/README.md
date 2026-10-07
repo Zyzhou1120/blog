@@ -9,6 +9,8 @@
 3. 运行 `pnpm exec wrangler deploy --config backend/wrangler.jsonc`。配置会同时创建 SQLite Durable Object，无需另外创建数据库。
 4. 将部署返回的 HTTPS `workers.dev` 地址写入 `realtime.config.json` 的 `endpoint`。不要写入任何令牌。
 5. 使用博主已有 GitHub 令牌向服务的 `POST /sync` 发送 `Authorization: Bearer …`，导入仓库中的文章；检查公开 `GET /posts` 和 `GET /posts/welcome.md`。令牌通过请求头传输，不能放进 URL、日志或配置文件。
+
+编辑器删除文章时调用 `DELETE /posts/{文件名}`，请求体为 `{ "sha": "当前文章 SHA" }`。服务先核对仓库版本，在同一次 Git 提交中删除文章和指向它的旧链接，然后清除实时副本、浏览量、点赞与评论；发生版本冲突时返回 409，文章不会被删除。
 6. 运行 `pnpm test:editor` 和 `TZ=Asia/Shanghai GITHUB_REPOSITORY=Zyzhou1120/blog node .github/build-pages.mjs`，提交并推送前端配置。构建脚本会同步编辑器 CSP，只允许配置的服务地址。
 7. 用两个浏览器窗口验证：编辑窗口提交修改，已打开的普通文章页自动更新；再从首页进入，并验证新文章在静态构建完成前也能打开。
 

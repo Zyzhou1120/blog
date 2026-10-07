@@ -40,20 +40,26 @@ async function fixture({ failure = false, holdImage = null, holdSave = null, ren
       return reply({ id: 2 })
     }
     if (url === 'https://live.test/sync') return reply({ ok: true })
-    if (url === 'https://live.test/posts') return reply([{ name: post.name, sha: post.sha }])
+    if (url === 'https://live.test/posts') return reply(post ? [{ name: post.name, sha: post.sha }] : [])
     if (url === 'https://live.test/images') {
       if (holdImage) await holdImage
       if (failure) return reply({ message: '图片上传失败' }, 503)
       return reply({ url: 'https://raw.githubusercontent.com/Zyzhou1120/blog/main/source/images/uploads/test.png' })
     }
     if (String(url).startsWith('https://live.test/posts/')) {
+      if (options.method === 'DELETE') {
+        if (failure) return reply({ message: '删除失败' }, 503)
+        if (JSON.parse(options.body).sha !== post?.sha) return reply({ message: '文章已有新修改' }, 409)
+        post = null
+        return reply({ ok: true })
+      }
       if (options.method === 'PUT') {
         if (failure) return reply({ message: '网络请求失败' }, 503)
         const data = JSON.parse(options.body)
         if (holdSave) await holdSave
         post = { ...post, name: data.rename ? filenameForTitle(splitPost(data.text).meta.title) : post.name, text: data.text, sha: 'new-sha' }
       }
-      return reply(post)
+      return post ? reply(post) : reply({ message: '文章不存在' }, 404)
     }
     throw new Error(`Unexpected URL ${url}`)
   }
@@ -153,6 +159,47 @@ test('a failed live save never reports published and preserves the editable draf
     assert.match(doc.getElementById('save-state').textContent, /发布未完成/)
     assert.doesNotMatch(doc.getElementById('publication-state').textContent, /^已发布/)
     assert.match(f.window.localStorage.getItem('blog-editor:draft:welcome.md'), /4444/)
+  } finally { f.close() }
+})
+
+test('delete confirmation removes a published post without leaving a local draft', async () => {
+  const f = await fixture()
+  try {
+    const doc = f.window.document
+    doc.getElementById('markdown').value += '\n未提交内容'
+    doc.getElementById('markdown').dispatchEvent(new f.window.Event('input'))
+    doc.getElementById('delete-dialog').showModal = () => {}
+    doc.getElementById('delete-dialog').close = () => {}
+    doc.getElementById('delete-post').click()
+    assert.equal(doc.getElementById('delete-title').textContent, '欢迎')
+    assert.match(doc.getElementById('delete-detail').textContent, /未提交的修改会丢失/)
+    doc.getElementById('cancel-delete').click()
+    assert.equal(f.requests.some((r) => r.method === 'DELETE'), false)
+    doc.getElementById('delete-form').dispatchEvent(new f.window.Event('submit', { cancelable: true }))
+    await until(() => f.requests.some((r) => r.method === 'DELETE') && doc.getElementById('filename').textContent === '')
+    const sent = f.requests.find((r) => r.method === 'DELETE')
+    assert.equal(sent.headers.Authorization, 'Bearer owner-token')
+    assert.deepEqual(JSON.parse(sent.body), { sha: 'old-sha' })
+    assert.equal(doc.getElementById('post-count').textContent, '0')
+    assert.equal(f.window.localStorage.getItem('blog-editor:draft:welcome.md'), null)
+    assert.equal(f.window.sessionStorage.getItem('blog-editor:last-document'), null)
+    assert.equal(doc.getElementById('delete-post').disabled, true)
+  } finally { f.close() }
+})
+
+test('failed delete preserves the selected article and its draft', async () => {
+  const f = await fixture({ failure: true })
+  try {
+    const doc = f.window.document
+    doc.getElementById('delete-dialog').showModal = () => {}
+    doc.getElementById('delete-dialog').close = () => {}
+    doc.getElementById('markdown').value += '\n我的草稿'
+    doc.getElementById('markdown').dispatchEvent(new f.window.Event('input'))
+    doc.getElementById('delete-post').click()
+    doc.getElementById('delete-form').dispatchEvent(new f.window.Event('submit', { cancelable: true }))
+    await until(() => doc.getElementById('message').textContent.includes('删除失败'))
+    assert.equal(doc.getElementById('filename').textContent, 'welcome.md')
+    assert.match(f.window.localStorage.getItem('blog-editor:draft:welcome.md'), /我的草稿/)
   } finally { f.close() }
 })
 

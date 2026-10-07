@@ -183,10 +183,21 @@ async function start() {
     syncing = true
     try {
       if (name) {
-        const post = await liveRequest(`/posts/${encodeURIComponent(name)}`)
-        // Only disable static refresh after a live response has actually arrived.
-        window.blogLiveEnabled = true
-        renderPost(content(post))
+        try {
+          const post = await liveRequest(`/posts/${encodeURIComponent(name)}`)
+          // Only disable static refresh after a live response has actually arrived.
+          window.blogLiveEnabled = true
+          renderPost(content(post))
+        } catch (error) {
+          if (error.status !== 404) throw error
+          window.blogLiveEnabled = true
+          const article = reader || document.getElementById('article-container')
+          if (article) article.textContent = '这篇文章已删除，请返回首页。'
+          document.getElementById('reader-heading')?.remove()
+          const title = document.querySelector('.post-title')
+          if (title) title.textContent = '文章已删除'
+          document.title = '文章已删除 | 舟遥的博客'
+        }
       }
       const list = await liveRequest('/posts')
       const posts = []
@@ -236,7 +247,7 @@ async function start() {
         document.getElementById('pagination')?.remove()
       }
     } catch (error) {
-      if (reader && !document.getElementById('blog-publication')) reader.textContent = error.status === 404 ? '没有找到这篇文章，请返回首页。' : '暂时无法读取文章，正在重试…'
+      if (reader && !document.getElementById('blog-publication')) reader.textContent = '暂时无法读取文章，正在重试…'
     } finally {
       syncing = false
       if (again) { again = false; void sync() }

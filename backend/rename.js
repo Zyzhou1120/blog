@@ -65,3 +65,26 @@ export async function publishWithTitle(env, token, github, name, data) {
   await call(`/git/refs/heads/${env.BRANCH}`, { sha: resultCommit.sha, force: false }, 'PATCH')
   return { name: target, sha: blob.sha, text, aliases }
 }
+
+export async function deletePublishedPost(env, token, github, name, sha) {
+  const root = `/repos/${env.OWNER}/${env.REPO}`
+  const call = (path, body, method = 'POST') => github(env, token, root + path, body ? { method, body: JSON.stringify(body) } : {})
+  const head = (await call(`/git/ref/heads/${env.BRANCH}`)).object.sha
+  const aliases = await readAliases(env, token, github, head)
+  let remote = null
+  try { remote = await call(`/contents/source/_posts/${encodeURIComponent(name)}?ref=${head}`) }
+  catch (error) { if (error.status !== 404) throw error }
+  if (remote && remote.sha !== sha) throw fail('GitHub 上已有新修改，请重新载入文章后再删除。')
+  const nextAliases = Object.fromEntries(Object.entries(aliases).filter(([old, target]) => old !== name && target !== name))
+  if (!remote && Object.keys(nextAliases).length === Object.keys(aliases).length) return nextAliases
+  const commit = await call(`/git/commits/${head}`)
+  const tree = []
+  if (remote) tree.push({ path: `source/_posts/${name}`, mode: '100644', type: 'blob', sha: null })
+  if (Object.keys(nextAliases).length !== Object.keys(aliases).length) {
+    tree.push({ path: aliasPath, mode: '100644', type: 'blob', content: JSON.stringify(nextAliases, null, 2) + '\n' })
+  }
+  const resultTree = await call('/git/trees', { base_tree: commit.tree.sha, tree })
+  const resultCommit = await call('/git/commits', { message: `Delete post: ${name}`, tree: resultTree.sha, parents: [head] })
+  await call(`/git/refs/heads/${env.BRANCH}`, { sha: resultCommit.sha, force: false }, 'PATCH')
+  return nextAliases
+}

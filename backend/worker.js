@@ -1,6 +1,6 @@
 import { DurableObject } from 'cloudflare:workers'
 import { splitPost } from '../shared/post.mjs'
-import { publishWithTitle, readAliases } from './rename.js'
+import { deletePublishedPost, publishWithTitle, readAliases } from './rename.js'
 import { uploadImage } from './images.js'
 import { initializeViews, articleViews } from './views.js'
 import { initializeEngagement, articleIdentity, engagementRoute, manageComments } from './engagement.js'
@@ -32,10 +32,10 @@ export default {
   async fetch(request, env) {
     const origin = request.headers.get('Origin')
     if (origin && origin !== env.SITE_ORIGIN) return json({ message: 'Origin not allowed' }, 403)
-    const cors = { 'Access-Control-Allow-Origin': env.SITE_ORIGIN, 'Vary': 'Origin', 'Access-Control-Allow-Methods': 'GET, PUT, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Max-Age': '86400' }
+    const cors = { 'Access-Control-Allow-Origin': env.SITE_ORIGIN, 'Vary': 'Origin', 'Access-Control-Allow-Methods': 'GET, PUT, POST, DELETE, OPTIONS', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Max-Age': '86400' }
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors })
     try {
-      if (!['GET', 'PUT', 'POST'].includes(request.method)) throw fail('Method not allowed', 405)
+      if (!['GET', 'PUT', 'POST', 'DELETE'].includes(request.method)) throw fail('Method not allowed', 405)
       const token = request.headers.get('Authorization')?.match(/^Bearer (\S+)$/)?.[1]
       const path = new URL(request.url).pathname
       const publicMutation = request.method === 'POST' && /^\/(views|likes|comments)\//.test(path) && validName(decodeURIComponent(path.split('/').slice(2).join('/')))
@@ -92,6 +92,25 @@ export class Blog extends DurableObject {
     return { name, sha, text, updated }
   }
 
+  remove(name) {
+    const names = [name, ...this.sql.exec('SELECT name FROM aliases WHERE target = ?', name).toArray().map((row) => row.name)]
+    const ids = new Set(names.map((item) => this.sql.exec('SELECT id FROM view_keys WHERE name = ?', item).toArray()[0]?.id).filter(Boolean))
+    this.sql.exec('DELETE FROM posts WHERE name = ?', name)
+    this.sql.exec('DELETE FROM aliases WHERE name = ? OR target = ?', name, name)
+    for (const item of names) this.sql.exec('DELETE FROM view_keys WHERE name = ?', item)
+    for (const id of ids) {
+      if (this.sql.exec('SELECT 1 FROM view_keys WHERE id = ? LIMIT 1', id).toArray().length) continue
+      this.sql.exec('DELETE FROM comments WHERE article = ?', id)
+      this.sql.exec('DELETE FROM like_requests WHERE article = ?', id)
+      this.sql.exec('DELETE FROM engagement WHERE id = ?', id)
+      this.sql.exec('DELETE FROM view_days WHERE id = ?', id)
+      this.sql.exec('DELETE FROM view_totals WHERE id = ?', id)
+    }
+    for (const socket of this.ctx.getWebSockets()) {
+      try { socket.send(JSON.stringify({ type: 'deleted', name })) } catch { socket.close(1011, 'Reconnect') }
+    }
+  }
+
   async fetch(request) {
     const url = new URL(request.url)
     if (url.pathname === '/events' && request.method === 'GET') {
@@ -141,10 +160,27 @@ export class Blog extends DurableObject {
           this.save(file.name, raw.sha, decode(raw.content))
         }
         for (const old of this.sql.exec('SELECT name FROM posts').toArray()) {
-          if (!names.has(old.name)) this.sql.exec('DELETE FROM posts WHERE name = ?', old.name)
+          if (!names.has(old.name)) this.ctx.storage.transactionSync(() => this.remove(old.name))
         }
         this.importAliases(aliases)
         return json({ ok: true })
+      })
+    }
+    if (name && request.method === 'DELETE') {
+      let data
+      try { data = await request.json() } catch { return json({ message: '请求无效。' }, 400) }
+      if (typeof data.sha !== 'string' || !data.sha) return json({ message: '请先载入最新文章。' }, 400)
+      return this.ctx.blockConcurrencyWhile(async () => {
+        if (this.resolve(name) !== name) return json({ message: '文章已改名，请刷新文章列表后重新载入。' }, 409)
+        const current = this.post(name)
+        if (!current) return json({ message: '文章不存在。' }, 404)
+        if (current.sha !== data.sha) return json({ message: '文章已有新修改，请重新载入后再删除。' }, 409)
+        const aliases = await deletePublishedPost(this.env, request.headers.get('Authorization')?.slice(7), github, name, data.sha)
+        this.ctx.storage.transactionSync(() => {
+          this.remove(name)
+          this.importAliases(aliases)
+        })
+        return json({ ok: true, name })
       })
     }
     if (name && request.method === 'PUT') {

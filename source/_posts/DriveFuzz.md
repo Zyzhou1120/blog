@@ -366,4 +366,4 @@ $$
 - [DriveFuzz，CCS 2022 原论文](https://drivefuzz.s3lab.io/ccs22-drivefuzz.pdf)
 - [DriveFuzz 官方项目页](https://drivefuzz.s3lab.io/)
 - [作者开源实现，本篇代码说明固定到 ae08cc6](https://gitlab.com/s3lab-code/public/drivefuzz/-/tree/ae08cc66d6fe0f8bc67ff2d3de55ab3f26809b59)
-- 同组阅读：[DeepCollision](/blog/read/?post=DeepCollision.md)、[CAT](/blog/read/?post=CAT.md)、[ScenGE](/blog/read/?post=ScenGE.md)
+- 同组阅读：[DeepCollision](/blog/read/?post=DeepCollision.md)、[ScenGE](/blog/read/?post=ScenGE.md)

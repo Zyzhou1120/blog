@@ -28,9 +28,9 @@ function fixture({ generic = false, home = false, categories = false, categoryQu
     close() { this.readyState = 3 }
     send() {}
   }
-  window.fetch = async (url) => ({ ok: true, json: async () => String(url).includes('/comments/') ? { items: [], next: null } : String(url).includes('/engagement/') ? { likes: 8, comments: 0 } : String(url).includes('/views') ? { count: 25 } : String(url).endsWith('/posts') ? [{ name: post.name, sha: post.sha }] : { ...post } })
+  window.fetch = async (url) => ({ ok: post !== null || !String(url).includes('/posts/'), status: post === null && String(url).includes('/posts/') ? 404 : 200, json: async () => String(url).includes('/comments/') ? { items: [], next: null } : String(url).includes('/engagement/') ? { likes: 8, comments: 0 } : String(url).includes('/views') ? { count: 25 } : String(url).endsWith('/posts') ? (post ? [{ name: post.name, sha: post.sha }] : []) : post ? { ...post } : { message: '文章不存在' } })
   window.eval(script)
-  return { window, update(text) { post = { ...post, sha: `revision-${++revision}`, text }; socket.onmessage({ data: JSON.stringify({ type: 'updated', name: post.name, sha: post.sha }) }) }, close: () => window.close() }
+  return { window, update(text) { post = { ...post, sha: `revision-${++revision}`, text }; socket.onmessage({ data: JSON.stringify({ type: 'updated', name: post.name, sha: post.sha }) }) }, remove() { post = null; socket.onmessage({ data: JSON.stringify({ type: 'deleted', name: 'welcome.md' }) }) }, close: () => window.close() }
 }
 
 test('an ordinary old article loads current content and reacts to live publication without navigation', async () => {
@@ -44,6 +44,17 @@ test('an ordinary old article loads current content and reacts to live publicati
     assert.equal(f.window.document.querySelector('#article-container script, #article-container [onerror]'), null)
     assert.equal(f.window.location.pathname, '/blog/2026/09/29/welcome/')
     assert.equal(f.window.blogLiveEnabled, true)
+  } finally { f.close() }
+})
+
+test('a deleted post disappears from an already-open article page', async () => {
+  const f = fixture()
+  try {
+    await until(() => f.window.document.getElementById('article-container').textContent.includes('4444'))
+    f.remove()
+    await until(() => f.window.document.getElementById('article-container').textContent.includes('这篇文章已删除'))
+    assert.equal(f.window.document.getElementById('blog-publication'), null)
+    assert.equal(f.window.document.querySelector('.post-title').textContent, '文章已删除')
   } finally { f.close() }
 })
 

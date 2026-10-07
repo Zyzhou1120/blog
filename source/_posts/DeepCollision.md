@@ -247,7 +247,7 @@ DeepCollision 则使用学到的 Q 值，尝试把后续奖励也考虑进去。
 
 否则，让其他车辆直接撞向主车当然很容易，却未必说明主车哪里需要修复。
 
-这个方法最清楚的贡献，是把环境配置选择变成了一个可以学习的连续决策过程。它输出的是更有压力的测试经历；如果还希望用这些经历继续训练驾驶策略，就可以接着看 [CAT](/blog/read/?post=CAT.md)。
+这个方法最清楚的贡献，是把环境配置选择变成了一个可以学习的连续决策过程。它输出的是更有压力的测试经历；如果还希望用这些经历继续训练驾驶策略，可以参阅 [CAT 原论文](https://proceedings.mlr.press/v229/zhang23g/zhang23g.pdf)。
 
 ### 参考资料
 
@@ -255,4 +255,4 @@ DeepCollision 则使用学到的 Q 值，尝试把后续奖励也考虑进去。
 - [作者公开实现与说明](https://github.com/simplexity-lab/DeepCollision/tree/84f21ee2f16a59b7a528d62865d15af1aa667866)
 - [2022 年原始实验数据](https://github.com/simplexity-lab/DeepCollision/tree/4d1f7c1ab37ab4e0626d3ad422830f07c0241576/formal-experiment/formal_experiment_raw_data)
 - [作者 2022 年复现材料归档](https://doi.org/10.5281/zenodo.5906634)
-- 同组阅读：[DriveFuzz](/blog/read/?post=DriveFuzz.md)、[CAT](/blog/read/?post=CAT.md)、[ScenGE](/blog/read/?post=ScenGE.md)
+- 同组阅读：[DriveFuzz](/blog/read/?post=DriveFuzz.md)、[ScenGE](/blog/read/?post=ScenGE.md)

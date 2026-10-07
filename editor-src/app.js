@@ -15,7 +15,7 @@ import { setupSidebar } from './sidebar.js'
 import { categoryPaths } from './categories.js'
 import {
   createIcons, SquarePen, KeyRound, ArrowRight, Menu, Search, PanelLeft, ChevronLeft, FilePlus2,
-  Upload, LogOut, RefreshCw, ExternalLink, FileText, X,
+  Upload, LogOut, RefreshCw, ExternalLink, FileText, Trash2, X,
   Minus, Bold, Italic, Strikethrough, Sigma, Link, Image, Code, SquareCode,
   Table2, Quote, List, ListOrdered, ListChecks, Undo2, Redo2, Columns2, Eye, Maximize, CircleHelp,
 } from 'lucide'
@@ -26,7 +26,7 @@ const BRANCH = 'main'
 const POSTS_PATH = 'source/_posts'
 const API = `https://api.github.com/repos/${OWNER}/${REPO}`
 const LAST_DOCUMENT_KEY = 'blog-editor:last-document'
-const icons = { SquarePen, KeyRound, ArrowRight, Menu, Search, PanelLeft, ChevronLeft, FilePlus2, Upload, LogOut, RefreshCw, ExternalLink, FileText, X, Minus, Bold, Italic, Strikethrough, Sigma, Link, Image, Code, SquareCode, Table2, Quote, List, ListOrdered, ListChecks, Undo2, Redo2, Columns2, Eye, Maximize, CircleHelp }
+const icons = { SquarePen, KeyRound, ArrowRight, Menu, Search, PanelLeft, ChevronLeft, FilePlus2, Upload, LogOut, RefreshCw, ExternalLink, FileText, Trash2, X, Minus, Bold, Italic, Strikethrough, Sigma, Link, Image, Code, SquareCode, Table2, Quote, List, ListOrdered, ListChecks, Undo2, Redo2, Columns2, Eye, Maximize, CircleHelp }
 const $ = (id) => document.getElementById(id)
 
 let token = ''
@@ -382,6 +382,7 @@ function setDocument(name, text, currentSha) {
   $('draft-notice').hidden = true
   $('conflict-notice').hidden = true
   $('reload-post').disabled = !currentSha
+  $('delete-post').disabled = false
   $('message').hidden = true
   renderPreview()
   renderPosts()
@@ -567,6 +568,75 @@ async function publishLive() {
   } finally { $('publish').disabled = false }
 }
 
+function clearDocument() {
+  publication.stop()
+  liveCheck += 1
+  filename = ''
+  sha = null
+  baseText = ''
+  setSource('')
+  $('document-title').textContent = '选择文章'
+  $('filename').textContent = ''
+  $('filename-hint').textContent = '文件名随标题自动更新'
+  $('reload-post').disabled = true
+  $('delete-post').disabled = true
+  $('draft-notice').hidden = true
+  $('conflict-notice').hidden = true
+  $('publication-bar').dataset.state = 'unpublished'
+  $('publication-state').textContent = '尚未发布'
+  $('view-published').hidden = true
+  renderPreview()
+  setStatus('选择文章后开始写作')
+}
+
+async function deletePost() {
+  const name = filename
+  const currentSha = sha
+  if (!name) return
+  clearTimeout(saveTimer)
+  storeDraft()
+  $('delete-confirm').disabled = true
+  $('delete-confirm').textContent = '正在删除…'
+  $('delete-post').disabled = true
+  $('publish').disabled = true
+  try {
+    if (currentSha) {
+      if (liveEndpoint) {
+        await liveRequest(`/posts/${encodeURIComponent(name)}`, { method: 'DELETE', body: JSON.stringify({ sha: currentSha }) }, token)
+      } else {
+        const path = `/contents/${encodedPath(`${POSTS_PATH}/${name}`)}`
+        const latest = await request(`${path}?ref=${BRANCH}`)
+        if (latest.sha !== currentSha) throw Object.assign(new Error('远程文章已有新修改'), { status: 409 })
+        await request(path, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: `Delete post: ${name}`, sha: currentSha, branch: BRANCH }) })
+      }
+    }
+    localStorage.removeItem(draftKey(name))
+    sessionStorage.removeItem(LAST_DOCUMENT_KEY)
+    sessionStorage.removeItem(`blog-editor:publication:${name}`)
+    postDetails.delete(name)
+    posts = posts.filter((post) => post.name !== name)
+    $('post-search').value = ''
+    $('delete-dialog').close()
+    clearDocument()
+    try {
+      await loadPosts()
+      if (posts[0]) await openPost(posts[0])
+      showMessage(currentSha ? `“${name}”已删除，公开页面正在更新。` : '本地草稿已删除。')
+    } catch {
+      showMessage(`“${name}”已删除，文章列表暂时无法刷新。`)
+    }
+  } catch (error) {
+    $('delete-dialog').close()
+    if (isConflict(error)) $('conflict-notice').hidden = false
+    showMessage(showError(error), true)
+  } finally {
+    $('delete-confirm').disabled = false
+    $('delete-confirm').textContent = '确认删除'
+    $('delete-post').disabled = !filename
+    $('publish').disabled = false
+  }
+}
+
 function showConnection(failed = false) {
   $('auth-view').hidden = true
   $('editor-view').hidden = true
@@ -678,6 +748,17 @@ $('new-form').addEventListener('submit', (event) => {
 $('close-dialog').addEventListener('click', () => $('new-dialog').close())
 $('cancel-new').addEventListener('click', () => $('new-dialog').close())
 $('publish').addEventListener('click', publish)
+$('delete-post').addEventListener('click', () => {
+  if (!filename) return
+  $('delete-title').textContent = describePost(currentSource(), filename).title
+  $('delete-detail').textContent = sha
+    ? '文章将从网站和仓库删除，相关浏览量、点赞与评论也会清除。未提交的修改会丢失。'
+    : '这篇文章只保存在此浏览器，删除后无法恢复。'
+  $('delete-dialog').showModal()
+})
+$('delete-form').addEventListener('submit', (event) => { event.preventDefault(); void deletePost() })
+$('cancel-delete').addEventListener('click', () => $('delete-dialog').close())
+$('close-delete').addEventListener('click', () => $('delete-dialog').close())
 $('check-publication').addEventListener('click', () => liveEndpoint ? checkLivePublication() : publication.check(true))
 $('reload-post').addEventListener('click', () => {
   if (filename && sha) openPost({ name: filename }, true)

@@ -255,7 +255,7 @@ $$
 | --- | --- |
 | [DriveFuzz](/blog/read/?post=DriveFuzz.md) | 根据驾驶行为反馈，不断变异测试场景 |
 | [DeepCollision](/blog/read/?post=DeepCollision.md) | 学习测试过程中怎样改变环境，更容易触发碰撞 |
-| [CAT](/blog/read/?post=CAT.md) | 用交通数据约束对抗场景，并把生成和主车训练接成循环 |
+| [CAT 原论文](https://proceedings.mlr.press/v229/zhang23g/zhang23g.pdf) | 用交通数据约束对抗场景，并把生成和主车训练接成循环 |
 | ScenGE | 先生成核心危险，再让多辆背景车配合，压缩视野与操作空间 |
 
 ScenGE 最有意思的地方是：真正让主车难受的，可能不是突然冲出来的那个参与者本身，而是**它出现时，周围的车恰好让主车既看不清，又不方便躲**。
