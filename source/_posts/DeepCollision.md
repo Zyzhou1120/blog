@@ -10,7 +10,7 @@ priority: 2
 
 > 本篇介绍 DeepCollision，对应论文 [Learning Configurations of Operating Environment of Autonomous Vehicles to Maximize their Collisions](https://doi.org/10.1109/TSE.2022.3150788)，2022 年在线发表于 IEEE TSE，正式卷期为 2023 年 49(1)。本文依据论文公开摘要、作者公开实现和原始实验数据讲解；尚未取得出版社全文。实验部分会明确说明重新统计的口径。
 
-[DriveFuzz](/blog/read/?post=DriveFuzz.md) 会根据上一趟驾驶质量，决定下一轮从哪个场景继续改进。DeepCollision 则研究：**车还在开的时候，测试程序观察它现在的状态，再决定接下来怎样改变环境。**
+[DriveFuzz] 会根据上一趟驾驶质量，决定下一轮从哪个场景继续改进。DeepCollision 则研究：**车还在开的时候，测试程序观察它现在的状态，再决定接下来怎样改变环境。**
 
 这次，我们先给测试程序放进一个会学习的模型。
 
